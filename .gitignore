@@ -19,3 +19,7 @@ project/plugins/project/
 # custom
 .DS_Store
 data/
+
+# IntelliJ (TODO check)
+.idea
+
