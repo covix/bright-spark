@@ -13,9 +13,9 @@ Add the following dependecy to `pom.xml`
 
 ```
 <dependency>
- <groupId>org.apache.spark</groupId>
- <artifactId>spark-core_2.11</artifactId>
- <version>2.0.0</version>
+  <groupId>org.apache.spark</groupId>
+  <artifactId>spark-core_2.11</artifactId>
+  <version>2.0.0</version>
 </dependency>
 ```
 
@@ -39,8 +39,17 @@ val sc = new SparkContext(conf)
 ```
 mvn package
 ```
-if it doesn not compile because of `-make:transitive`, just remove `<arg>-make:transitive</arg>` from the `pom.xml` file
+if it does not compile because of `-make:transitive`, just remove `<arg>-make:transitive</arg>` from the `pom.xml` file
 
+if it does not compile because of `JUnitRunnner`, add the following dependency:
+```
+<dependency>
+  <groupId>org.specs2</groupId>
+  <artifactId>specs2-junit_${scala.compat.version}</artifactId>
+  <version>2.4.16</version>
+  <scope>test</scope>
+</dependency> 
+```
 
 ### Test the scala app:
 `java -cp {scala-library.jar}:{app jar} {app class}`
