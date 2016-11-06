@@ -22,4 +22,5 @@ data/
 
 # IntelliJ (TODO check)
 .idea
+*.iml
 

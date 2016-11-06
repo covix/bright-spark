@@ -1,6 +1,9 @@
 # bright-spark
 Repo for BigData project
 
+## Download dataset
+Run `./download [year]`
+
 ## Create App, compile and stuff:
 ### Create project
 ```
@@ -9,7 +12,7 @@ mvn archetype:generate
 filter by *scala* and select something like `net.alchim31.maven:scala-archetype-simple`
 
 ### Create a Spark application
-Add the following dependecy to `pom.xml` 
+Add the following dependecy to `pom.xml`
 
 ```
 <dependency>
@@ -48,11 +51,17 @@ if it does not compile because of `JUnitRunnner`, add the following dependency:
   <artifactId>specs2-junit_${scala.compat.version}</artifactId>
   <version>2.4.16</version>
   <scope>test</scope>
-</dependency> 
+</dependency>
 ```
 
 ### Test the scala app:
 `java -cp {scala-library.jar}:{app jar} {app class}`
 
 #### For example:
-`java -cp /opt/spark/jars/scala-library-2.11.8.jar:target/bd-1.0-SNAPSHOT.jar bd.App`
+`java -cp /opt/spark/jars/scala-library-2.11.8.jar:target/bdproj-1.0-SNAPSHOT.jar lucnik.App`
+
+### Deploy app on yarn
+`/opt/spark2/bin/spark-submit --master yarn --class {app class} {app jar}`
+
+### For example
+``/opt/spark2/bin/spark-submit --master yarn --class lucnik.App target/bdproj-1.0-SNAPSHOT.jar`
