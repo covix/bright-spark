@@ -2,8 +2,10 @@ package lucnik
 
 import org.apache.spark.SparkConf
 import org.apache.spark.SparkContext
-import org.apache.spark.SparkContext._
-import org.apache.log4j.{Level, Logger, Priority}
+import org.apache.log4j.{Level, Logger}
+import org.apache.spark.sql.{Column, DataFrame, SparkSession}
+import org.apache.spark.sql.functions._
+
 
 object App {
   def main(args: Array[String]) {
@@ -19,16 +21,58 @@ object App {
     val conf = new SparkConf().setAppName("Big Data Project")
     val sc = new SparkContext(conf)
 
-    Logger.getRootLogger.setLevel(Level.WARN)
+    // TODO do we need to enable Hive support?
+    val spark = SparkSession
+      .builder()
+      .appName("")
+      .enableHiveSupport()
+      .getOrCreate()
 
+    // TODO rly???
+    import spark.implicits._
+
+    Logger.getRootLogger.setLevel(Level.WARN)
     Logger.getRootLogger.log(Level.DEBUG, s"Loading data from: $dataLocation")
 
-    //    val bookRDD = sc.textFile(dataLocation)
+    var data: DataFrame = spark.read
+      .option("header", "true")
+      .csv(dataLocation)
+    
+    val columnNames = Seq(
+      "Year",
+      "Month",
+      "DayofMonth",
+      "DayOfWeek",
+      "DepTime",
+      "CRSDepTime",
+      //      "ArrTime", // forbidden
+      "CRSArrTime",
+      "UniqueCarrier",
+      "FlightNum",
+      "TailNum",
+      "ActualElapsedTime",
+      "CRSElapsedTime",
+      "AirTime",
+      "ArrDelay", // target
+      "DepDelay",
+      "Origin",
+      "Dest",
+      "Distance",
+      "TaxiIn",
+      "TaxiOut",
+      "Cancelled",
+      "CancellationCode",
+      "Diverted"
+      //      "CarrierDelay", // forbidden
+      //      "WeatherDelay", // forbidden
+      //      "NASDelay", // forbidden
+      //      "SecurityDelay", // forbidden
+      //      "LateAircraftDelay" // forbidden
+    )
 
-    val data = sc.textFile(dataLocation)
-    val numAs = data.filter(line => line.contains("a")).count()
-    val numBs = data.filter(line => line.contains("b")).count()
+    data = data.select(columnNames.head, columnNames.tail: _*)
 
-    println(s"Lines with a: $numAs, Lines with b: $numBs")
+    print(data.printSchema)
+    print(data.show(10))
   }
 }

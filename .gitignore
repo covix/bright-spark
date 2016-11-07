@@ -23,4 +23,5 @@ data/
 # IntelliJ (TODO check)
 .idea
 *.iml
+metastore_db/
 
