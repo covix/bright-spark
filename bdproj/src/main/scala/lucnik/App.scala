@@ -35,9 +35,10 @@ object App {
     Logger.getRootLogger.log(Level.DEBUG, s"Loading data from: $dataLocation")
 
     var data: DataFrame = spark.read
-      .option("header", "true")
+      .option("header", "true").
+	  .option("inferSchema", "true").  // does this line infer types automatically?
       .csv(dataLocation)
-    
+
     val columnNames = Seq(
       "Year",
       "Month",
