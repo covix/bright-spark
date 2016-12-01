@@ -50,15 +50,15 @@ object App {
       "UniqueCarrier",
       "FlightNum",
       "TailNum",
-      "ActualElapsedTime",
+      //      "ActualElapsedTime", // forbidden
       "CRSElapsedTime",
-      "AirTime",
+      //      "AirTime", // forbidden
       "ArrDelay", // target
       "DepDelay",
       "Origin",
       "Dest",
       "Distance",
-      "TaxiIn",
+      //      "TaxiIn", // forbidden
       "TaxiOut",
       "Cancelled",
       "CancellationCode",
@@ -78,7 +78,7 @@ object App {
   }
 }
 
-// 
+//
 // // Exercise 3 by Jesús
 //  val spark = SparkSession
 //     .builder()
