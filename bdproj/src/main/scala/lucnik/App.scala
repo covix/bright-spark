@@ -51,15 +51,15 @@ object App {
       "UniqueCarrier",
       "FlightNum",
       "TailNum",
-      "ActualElapsedTime",
+      //      "ActualElapsedTime", // forbidden
       "CRSElapsedTime",
-      "AirTime",
+      //      "AirTime", // forbidden
       "ArrDelay", // target
       "DepDelay",
       "Origin",
       "Dest",
       "Distance",
-      "TaxiIn",
+      //      "TaxiIn", // forbidden
       "TaxiOut",
       "Cancelled",
       "CancellationCode",
