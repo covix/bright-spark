@@ -3,82 +3,115 @@ package lucnik
 import org.apache.spark.SparkConf
 import org.apache.spark.SparkContext
 import org.apache.log4j.{Level, Logger}
+import org.apache.spark.ml.classification.LogisticRegression
+import org.apache.spark.ml.feature.VectorAssembler
+import org.apache.spark.ml.regression.LinearRegression
 import org.apache.spark.sql.{Column, DataFrame, SparkSession}
 import org.apache.spark.sql.functions._
+import org.apache.spark.sql.types.IntegerType
 
 
 object App {
-  def main(args: Array[String]) {
+    def main(args: Array[String]) {
+        var dataLocation = ""
+        if (args.length > 0) {
+            dataLocation = args(0)
+        }
+        else {
+            dataLocation = "./dataset.csv"
+        }
 
-    var dataLocation = ""
-    if (args.length > 0) {
-      dataLocation = args(0)
+        val conf = new SparkConf().setAppName("Big Data Project")
+        val sc = new SparkContext(conf)
+
+        // TODO do we need to enable Hive support?
+        val spark = SparkSession
+            .builder()
+            .appName("")
+            .enableHiveSupport()
+            .getOrCreate()
+
+        import spark.implicits._
+
+        Logger.getRootLogger.setLevel(Level.WARN)
+        Logger.getRootLogger.log(Level.DEBUG, s"Loading data from: $dataLocation")
+
+        var df = spark.read
+            .format("com.databricks.spark.csv")
+            .option("header", "true")
+            .option("inferSchema", "true") // does this line infer types automatically?
+            .csv(dataLocation)
+
+        val columnNames = Seq(
+            "Year",
+            "Month",
+            "DayofMonth",
+            "DayOfWeek",
+            "DepTime",
+            "CRSDepTime",
+            //"ArrTime", // forbidden
+            "CRSArrTime",
+            //"UniqueCarrier",  // mmm
+            //"FlightNum", // mmm
+            //"TailNum",  // mmm
+            //"ActualElapsedTime", // forbidden
+            "CRSElapsedTime",
+            //"AirTime", // forbidden
+            "ArrDelay", // target
+            "DepDelay", // wat?
+            "Origin",
+            "Dest",
+            "Distance",
+            //"TaxiIn", // forbidden
+            "TaxiOut",
+            "Cancelled", // what with this?
+            //"CancellationCode", // what with this?
+            "Diverted"
+            //"CarrierDelay", // forbidden
+            //"WeatherDelay", // forbidden
+            //"NASDelay", // forbidden
+            //"SecurityDelay", // forbidden
+            //"LateAircraftDelay" // forbidden
+        )
+
+        df = df.select(columnNames.head, columnNames.tail: _*)
+
+        // could not be needed the print
+        print(df.printSchema)
+        print(df.show(10))
+
+        print(df.select(df("DayOfWeek")).distinct.show())
+        print(df.select(df("TaxiOut")).distinct.show())
+
+        // TODO what to do with cancelled flights?
+        df.filter(df("Cancelled") === 1)
+            .select("Cancelled", "TaxiOut", "DepTime")
+            .distinct()
+            .show()
+
+        df = df.filter(df("Cancelled") === 1)
+        df.drop("Cancelled", "CancellationCode")
+
+        for (colName <- Array("DepTime", "ArrDelay", "DepDelay", "Origin", "Dest", "TaxiOut")) {
+            df = df.withColumn(colName, df.col(colName).cast(IntegerType))
+        }
+
+        df.printSchema()
+
+        val assembler = new VectorAssembler()
+            .setInputCols(df.columns.drop(df.columns.indexOf("ArrDelay")))
+            .setOutputCol("features")
+        val output = assembler.transform(df)
+
+        val model = new LogisticRegression()
+            .setLabelCol("ArrDelay")
+            .setMaxIter(10)
+
+        val trainedModel = model.fit(output)
     }
-    else {
-      dataLocation = "./dataset.csv"
-    }
-
-    val conf = new SparkConf().setAppName("Big Data Project")
-    val sc = new SparkContext(conf)
-
-    // TODO do we need to enable Hive support?
-    val spark = SparkSession
-      .builder()
-      .appName("")
-      .enableHiveSupport()
-      .getOrCreate()
-
-    import spark.implicits._
-
-    Logger.getRootLogger.setLevel(Level.WARN)
-    Logger.getRootLogger.log(Level.DEBUG, s"Loading data from: $dataLocation")
-
-    var data: DataFrame = spark.read
-      .option("header", "true").
-	  .option("inferSchema", "true").  // does this line infer types automatically?
-      .csv(dataLocation)
-
-    val columnNames = Seq(
-      "Year",
-      "Month",
-      "DayofMonth",
-      "DayOfWeek",
-      "DepTime",
-      "CRSDepTime",
-      //      "ArrTime", // forbidden
-      "CRSArrTime",
-      "UniqueCarrier",
-      "FlightNum",
-      "TailNum",
-      //      "ActualElapsedTime", // forbidden
-      "CRSElapsedTime",
-      //      "AirTime", // forbidden
-      "ArrDelay", // target
-      "DepDelay",
-      "Origin",
-      "Dest",
-      "Distance",
-      //      "TaxiIn", // forbidden
-      "TaxiOut",
-      "Cancelled",
-      "CancellationCode",
-      "Diverted"
-      //      "CarrierDelay", // forbidden
-      //      "WeatherDelay", // forbidden
-      //      "NASDelay", // forbidden
-      //      "SecurityDelay", // forbidden
-      //      "LateAircraftDelay" // forbidden
-    )
-
-    data = data.select(columnNames.head, columnNames.tail: _*)
-
-    // could not be needed the print
-    print(data.printSchema)
-    print(data.show(10))
-  }
 }
 
-//
+
 // // Exercise 3 by Jesús
 //  val spark = SparkSession
 //     .builder()
