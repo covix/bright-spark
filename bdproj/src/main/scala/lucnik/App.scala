@@ -4,22 +4,17 @@ import org.apache.spark.SparkConf
 import org.apache.spark.SparkContext
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.ml.classification.LogisticRegression
-import org.apache.spark.ml.feature.VectorAssembler
+import org.apache.spark.ml.feature.{OneHotEncoder, StringIndexer, VectorAssembler, VectorIndexer}
 import org.apache.spark.ml.regression.LinearRegression
 import org.apache.spark.sql.{Column, DataFrame, SparkSession}
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.types.IntegerType
+import org.apache.spark.sql.types.{DoubleType, IntegerType}
 
 
 object App {
     def main(args: Array[String]) {
         var dataLocation = ""
-        if (args.length > 0) {
-            dataLocation = args(0)
-        }
-        else {
-            dataLocation = "./dataset.csv"
-        }
+        dataLocation = args(0)
 
         val conf = new SparkConf().setAppName("Big Data Project")
         val sc = new SparkContext(conf)
@@ -39,7 +34,7 @@ object App {
         var df = spark.read
             .format("com.databricks.spark.csv")
             .option("header", "true")
-            .option("inferSchema", "true") // does this line infer types automatically?
+            .option("inferSchema", "true") // only infer int if there's no NA
             .csv(dataLocation)
 
         val columnNames = Seq(
@@ -64,9 +59,9 @@ object App {
             "Distance",
             //"TaxiIn", // forbidden
             "TaxiOut",
-            "Cancelled", // what with this?
+            "Cancelled" // what with this?
             //"CancellationCode", // what with this?
-            "Diverted"
+            //"Diverted", // forbidden
             //"CarrierDelay", // forbidden
             //"WeatherDelay", // forbidden
             //"NASDelay", // forbidden
@@ -77,11 +72,11 @@ object App {
         df = df.select(columnNames.head, columnNames.tail: _*)
 
         // could not be needed the print
-        print(df.printSchema)
-        print(df.show(10))
+        df.printSchema
+        df.show(10)
 
-        print(df.select(df("DayOfWeek")).distinct.show())
-        print(df.select(df("TaxiOut")).distinct.show())
+        df.select(df("DayOfWeek")).distinct.show()
+        df.select(df("TaxiOut")).distinct.show()
 
         // TODO what to do with cancelled flights?
         df.filter(df("Cancelled") === 1)
@@ -89,25 +84,83 @@ object App {
             .distinct()
             .show()
 
-        df = df.filter(df("Cancelled") === 1)
-        df.drop("Cancelled", "CancellationCode")
+        df = df.filter(df("Cancelled") === 0)
+        df = df.drop("Cancelled")
 
-        for (colName <- Array("DepTime", "ArrDelay", "DepDelay", "Origin", "Dest", "TaxiOut")) {
-            df = df.withColumn(colName, df.col(colName).cast(IntegerType))
+        for (colName <- Array("DepTime", "ArrDelay", "DepDelay", "TaxiOut")) {
+            df = df.withColumn(colName, df.col(colName).cast(DoubleType))
+        }
+
+        //for (colName <- df.columns) {
+        //    df.select(df(colName)).distinct.show()
+        //}
+
+        for (colName <- df.columns) {
+            df.select(count(df.col(colName).isNull)).show
+        }
+
+        df.select(min("ArrDelay"), max("ArrDelay")).show
+
+        df.printSchema
+
+        print("Converting hhmm times to hour buckets")
+        for (colName <- Array("DepTime", "CRSDepTime", "CRSArrTime")) {
+            df = df.withColumn(colName, expr(s"cast($colName / 100 as int)"))
+        }
+
+        print("One Hot Encoding")
+        for (colName <- Array("Origin", "Dest")) {
+            val indexer = new StringIndexer()
+                .setInputCol(colName)
+                .setOutputCol(colName + "Index")
+                .fit(df)
+            val indexed = indexer.transform(df)
+
+            val encoder = new OneHotEncoder()
+                .setInputCol(colName + "Index")
+                .setOutputCol(colName + "Vec")
+            df = encoder.transform(indexed)
+
+            df = df.withColumn(colName, df.col(colName + "Vec"))
+                .drop(colName + "Index", colName + "Vec")
+
+            // TODO remove this line
+            df = df.drop(colName)
         }
 
         df.printSchema()
+        df.show()
 
         val assembler = new VectorAssembler()
-            .setInputCols(df.columns.drop(df.columns.indexOf("ArrDelay")))
+            //.setInputCols(df.columns.drop(df.columns.indexOf("ArrDelay")))
+            .setInputCols(df.columns)
             .setOutputCol("features")
-        val output = assembler.transform(df)
+        val training = assembler.transform(df)
 
-        val model = new LogisticRegression()
+        training.printSchema()
+        training.show()
+
+        //val model = new LogisticRegression()
+        //    .setLabelCol("ArrDelay")
+        //    .setMaxIter(10)
+
+        val model = new LinearRegression()
+            .setFeaturesCol("features")
             .setLabelCol("ArrDelay")
             .setMaxIter(10)
+            .setRegParam(0.3)
+            .setElasticNetParam(0.8)
 
-        val trainedModel = model.fit(output)
+        val trainedModel = model.fit(training)
+
+        println(s"Coefficients: ${trainedModel.coefficients} Intercept: ${trainedModel.intercept}")
+
+        val trainingSummary = trainedModel.summary
+        println(s"numIterations: ${trainingSummary.totalIterations}")
+        println(s"objectiveHistory: ${trainingSummary.objectiveHistory.toList}")
+        trainingSummary.residuals.show()
+        println(s"RMSE: ${trainingSummary.rootMeanSquaredError}")
+        println(s"r2: ${trainingSummary.r2}")
     }
 }
 
