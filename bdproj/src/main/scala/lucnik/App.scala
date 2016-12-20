@@ -3,9 +3,11 @@ package lucnik
 import org.apache.spark.SparkConf
 import org.apache.spark.SparkContext
 import org.apache.log4j.{Level, Logger}
-import org.apache.spark.ml.classification.LogisticRegression
-import org.apache.spark.ml.feature.{OneHotEncoder, StringIndexer, VectorAssembler, VectorIndexer}
-import org.apache.spark.ml.regression.LinearRegression
+import org.apache.spark.ml.Pipeline
+import org.apache.spark.ml.classification.{LogisticRegression, RandomForestClassificationModel, RandomForestClassifier}
+import org.apache.spark.ml.evaluation.{MulticlassClassificationEvaluator, RegressionEvaluator}
+import org.apache.spark.ml.feature._
+import org.apache.spark.ml.regression.{LinearRegression, RandomForestRegressor}
 import org.apache.spark.sql.{Column, DataFrame, SparkSession}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.{DoubleType, IntegerType}
@@ -13,8 +15,7 @@ import org.apache.spark.sql.types.{DoubleType, IntegerType}
 
 object App {
     def main(args: Array[String]) {
-        var dataLocation = ""
-        dataLocation = args(0)
+        val dataLocation = args(0)
 
         val conf = new SparkConf().setAppName("Big Data Project")
         val sc = new SparkContext(conf)
@@ -95,20 +96,24 @@ object App {
         //    df.select(df(colName)).distinct.show()
         //}
 
+        println("Checking for null values")
         for (colName <- df.columns) {
-            df.select(count(df.col(colName).isNull)).show
+            val c: DataFrame = df.select(sum(df.col(colName).isNull.cast(IntegerType)))
+            if (c.rdd.map(_ (0).asInstanceOf[Long]).reduce(_ + _) > 0) {
+                c.show
+            }
         }
 
         df.select(min("ArrDelay"), max("ArrDelay")).show
 
         df.printSchema
 
-        print("Converting hhmm times to hour buckets")
+        println("Converting hhmm times to hour buckets")
         for (colName <- Array("DepTime", "CRSDepTime", "CRSArrTime")) {
             df = df.withColumn(colName, expr(s"cast($colName / 100 as int)"))
         }
 
-        print("One Hot Encoding")
+        println("One Hot Encoding")
         for (colName <- Array("Origin", "Dest")) {
             val indexer = new StringIndexer()
                 .setInputCol(colName)
@@ -135,32 +140,126 @@ object App {
             //.setInputCols(df.columns.drop(df.columns.indexOf("ArrDelay")))
             .setInputCols(df.columns)
             .setOutputCol("features")
-        val training = assembler.transform(df)
+        var data = assembler.transform(df)
 
-        training.printSchema()
-        training.show()
+        data = data.withColumn("label", data.col("ArrDelay"))
 
-        //val model = new LogisticRegression()
-        //    .setLabelCol("ArrDelay")
+        data.printSchema()
+        data.show()
+        //
+        ////val model = new LogisticRegression()
+        ////    .setLabelCol("ArrDelay")
+        ////    .setMaxIter(10)
+        //
+        //val model = new LinearRegression()
+        //    .setFeaturesCol("features")
+        ////    .setLabelCol("ArrDelay")
         //    .setMaxIter(10)
+        //    .setRegParam(0.3)
+        //    .setElasticNetParam(0.8)
+        //
+        //val trainedModel = model.fit(data)
+        //
+        //println(s"Coefficients: ${trainedModel.coefficients} Intercept: ${trainedModel.intercept}")
+        //
+        //val trainingSummary = trainedModel.summary
+        //println(s"numIterations: ${trainingSummary.totalIterations}")
+        //println(s"objectiveHistory: ${trainingSummary.objectiveHistory.toList}")
+        //trainingSummary.residuals.show()
+        //println(s"RMSE: ${trainingSummary.rootMeanSquaredError}")
+        //println(s"r2: ${trainingSummary.r2}")
 
-        val model = new LinearRegression()
-            .setFeaturesCol("features")
-            .setLabelCol("ArrDelay")
-            .setMaxIter(10)
-            .setRegParam(0.3)
-            .setElasticNetParam(0.8)
 
-        val trainedModel = model.fit(training)
+        println("Random forest classifier")
+        // Index labels, adding metadata to the label column.
+        // Fit on whole dataset to include all labels in index.
+        val labelIndexer = new StringIndexer()
+            .setInputCol("label")
+            .setOutputCol("indexedLabel")
+            .fit(data)
 
-        println(s"Coefficients: ${trainedModel.coefficients} Intercept: ${trainedModel.intercept}")
+        // Automatically identify categorical features, and index them.
+        // Set maxCategories so features with > 4 distinct values are treated as continuous.
+        val featureIndexer = new VectorIndexer()
+            .setInputCol("features")
+            .setOutputCol("indexedFeatures")
+            .setMaxCategories(4)
+            .fit(data)
 
-        val trainingSummary = trainedModel.summary
-        println(s"numIterations: ${trainingSummary.totalIterations}")
-        println(s"objectiveHistory: ${trainingSummary.objectiveHistory.toList}")
-        trainingSummary.residuals.show()
-        println(s"RMSE: ${trainingSummary.rootMeanSquaredError}")
-        println(s"r2: ${trainingSummary.r2}")
+        // Split the data into training and test sets (30% held out for testing).
+        val Array(trainingData, testData) = data.randomSplit(Array(0.7, 0.3))
+
+        // Train a RandomForest model.
+        val rfc = new RandomForestClassifier()
+            .setLabelCol("indexedLabel")
+            .setFeaturesCol("indexedFeatures")
+            .setNumTrees(10)
+
+        // Convert indexed labels back to original labels.
+        val labelConverter = new IndexToString()
+            .setInputCol("prediction")
+            .setOutputCol("predictedLabel")
+            .setLabels(labelIndexer.labels)
+
+        // Chain indexers and forest in a Pipeline.
+        var pipeline = new Pipeline()
+            .setStages(Array(labelIndexer, featureIndexer, rfc, labelConverter))
+
+        // Train model. This also runs the indexers.
+        var model = pipeline.fit(trainingData)
+
+        // Make predictions.
+        var predictions = model.transform(testData)
+
+        // Select example rows to display.
+        predictions.select("predictedLabel", "label", "features").show(5)
+
+        val multiClassEvaluator = new MulticlassClassificationEvaluator()
+            .setLabelCol("indexedLabel")
+            .setPredictionCol("prediction")
+            .setMetricName("accuracy")
+        val accuracy = multiClassEvaluator.evaluate(predictions)
+        println("Accuracy = " + accuracy)
+        println("Test Error = " + (1.0 - accuracy))
+
+        //val rfModel = model.stages(2).asInstanceOf[RandomForestClassificationModel]
+        //println("Learned classification forest model:\n" + rfModel.toDebugString)
+
+        // Train a RandomForest model.
+        println("Random forest regressor")
+        val rfr = new RandomForestRegressor()
+            .setLabelCol("label")
+            .setFeaturesCol("indexedFeatures")
+
+        // Chain indexer and forest in a Pipeline.
+        pipeline = new Pipeline()
+            .setStages(Array(featureIndexer, rfr))
+
+        // Train model. This also runs the indexer.
+        model = pipeline.fit(trainingData)
+
+        // Make predictions.
+        predictions = model.transform(testData)
+
+        // Select example rows to display.
+        predictions.select("prediction", "label", "features").show(5)
+
+        // Select (prediction, true label) and compute test error.
+        val regressionEvaluator = new RegressionEvaluator()
+            .setLabelCol("label")
+            .setPredictionCol("prediction")
+            .setMetricName("rmse")
+
+        val rmse = regressionEvaluator.evaluate(predictions)
+        val r2 = regressionEvaluator
+            .setMetricName("r2")
+            .evaluate(predictions)
+
+        println("Root Mean Squared Error (RMSE) on test data = " + rmse)
+        println(s"r2: ${r2}")
+
+        //val rfModel = model.stages(1).asInstanceOf[RandomForestRegressionModel]
+        //println("Learned regression forest model:\n" + rfModel.toDebugString)
     }
 }
 
