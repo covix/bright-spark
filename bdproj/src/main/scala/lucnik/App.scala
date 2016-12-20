@@ -100,21 +100,20 @@ object App {
 
             spark.sql(s"SELECT $colName, COUNT($colName) AS cnt " +
                 s"FROM df " +
-                s"GROUP BY $colName").sort($"$colName").show
-
-            spark.sql(s"SELECT $colName, COUNT($colName) AS cnt " +
-                s"FROM df " +
                 s"GROUP BY $colName").sort($"$colName".desc).show
         }
 
-        println("Checking for null values")
-        for (colName <- df.columns) {
-            val c: DataFrame = df.select(sum(df.col(colName).isNull.cast(IntegerType)))
-            c.show
-            //if (c.rdd.map(_ (0).asInstanceOf[Long]).reduce(_ + _) > 0) {
-            //    c.show
-            //}
-        }
+        //println("Checking for null values")
+        //for (colName <- df.columns) {
+        //    val c: DataFrame = df.select(sum(df.col(colName).isNull.cast(IntegerType)))
+        //    c.show
+        //    //if (c.rdd.map(_ (0).asInstanceOf[Long]).reduce(_ + _) > 0) {
+        //    //    c.show
+        //    //}
+        //}
+
+        println("Drop all NA!!!")
+        df = df.na.drop()
 
         df.select(min("ArrDelay"), max("ArrDelay")).show
 
