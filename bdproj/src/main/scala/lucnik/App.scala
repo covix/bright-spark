@@ -71,6 +71,7 @@ object App {
         )
 
         df = df.select(columnNames.head, columnNames.tail: _*)
+        df.createOrReplaceTempView("df")
 
         // could not be needed the print
         df.printSchema
@@ -88,14 +89,18 @@ object App {
         df = df.filter(df("Cancelled") === 0)
             .drop("Cancelled")
 
-        for (colName <- Array("DepTime", "ArrDelay", "DepDelay", "TaxiOut")) {
+        for (colName <- Array("DepTime", "ArrDelay", "DepDelay", "TaxiOut", "CRSElapsedTime")) {
             df = df.withColumn(colName, df.col(colName).cast(DoubleType))
         }
 
         df = df.filter(df("ArrDelay").isNotNull)
 
         for (colName <- df.columns) {
-            df.select(df(colName)).distinct.show()
+            //df.select(df(colName)).distinct.show()
+
+            spark.sql(s"SELECT $colName, COUNT($colName) AS cnt " +
+                s"FROM df " +
+                s"GROUP BY $colName").sort($"$colName").show
         }
 
         println("Checking for null values")
