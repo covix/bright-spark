@@ -217,21 +217,21 @@ object App {
             .setStages(Array(labelIndexer, featureIndexer, rfc, labelConverter))
 
         // Train model. This also runs the indexers.
-        var model = pipeline.fit(trainingData)
+        //var model = pipeline.fit(trainingData)
 
         // Make predictions.
-        var predictions = model.transform(testData)
+        //var predictions = model.transform(testData)
 
         // Select example rows to display.
-        predictions.select("predictedLabel", "label", "features").show(5)
+        //predictions.select("predictedLabel", "label", "features").show(5)
 
-        val multiClassEvaluator = new MulticlassClassificationEvaluator()
-            .setLabelCol("indexedLabel")
-            .setPredictionCol("prediction")
-            .setMetricName("accuracy")
-        val accuracy = multiClassEvaluator.evaluate(predictions)
-        println("Accuracy = " + accuracy)
-        println("Test Error = " + (1.0 - accuracy))
+        //val multiClassEvaluator = new MulticlassClassificationEvaluator()
+        //    .setLabelCol("indexedLabel")
+        //    .setPredictionCol("prediction")
+        //    .setMetricName("accuracy")
+        //val accuracy = multiClassEvaluator.evaluate(predictions)
+        //println("Accuracy = " + accuracy)
+        //println("Test Error = " + (1.0 - accuracy))
 
         //val rfModel = model.stages(2).asInstanceOf[RandomForestClassificationModel]
         //println("Learned classification forest model:\n" + rfModel.toDebugString)
@@ -247,10 +247,10 @@ object App {
             .setStages(Array(featureIndexer, rfr))
 
         // Train model. This also runs the indexer.
-        model = pipeline.fit(trainingData)
+        var model = pipeline.fit(trainingData)
 
         // Make predictions.
-        predictions = model.transform(testData)
+        var predictions = model.transform(testData)
 
         // Select example rows to display.
         predictions.select("prediction", "label", "features").show(5)
