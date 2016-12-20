@@ -86,12 +86,13 @@ object App {
             .show()
 
         df = df.filter(df("Cancelled") === 0)
-            .filter(df("ArrDelay").isNotNull)
             .drop("Cancelled")
 
         for (colName <- Array("DepTime", "ArrDelay", "DepDelay", "TaxiOut")) {
             df = df.withColumn(colName, df.col(colName).cast(DoubleType))
         }
+
+        df = df.filter(df("ArrDelay").isNotNull)
 
         //for (colName <- df.columns) {
         //    df.select(df(colName)).distinct.show()
