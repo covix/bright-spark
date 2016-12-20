@@ -101,6 +101,10 @@ object App {
             spark.sql(s"SELECT $colName, COUNT($colName) AS cnt " +
                 s"FROM df " +
                 s"GROUP BY $colName").sort($"$colName").show
+
+            spark.sql(s"SELECT $colName, COUNT($colName) AS cnt " +
+                s"FROM df " +
+                s"GROUP BY $colName").sort($"$colName".desc).show
         }
 
         println("Checking for null values")
