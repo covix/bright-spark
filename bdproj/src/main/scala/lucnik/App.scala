@@ -47,8 +47,8 @@ object App {
             "CRSDepTime",
             //"ArrTime", // forbidden
             "CRSArrTime",
-            //"UniqueCarrier",  // mmm
-            //"FlightNum", // mmm
+            //"UniqueCarrier",  // TODO use it
+            //"FlightNum", // TODO think on it
             //"TailNum",  // mmm
             //"ActualElapsedTime", // forbidden
             "CRSElapsedTime",
@@ -60,8 +60,8 @@ object App {
             "Distance",
             //"TaxiIn", // forbidden
             "TaxiOut",
-            "Cancelled" // what with this?
-            //"CancellationCode", // what with this?
+            "Cancelled"
+            //"CancellationCode",
             //"Diverted", // forbidden
             //"CarrierDelay", // forbidden
             //"WeatherDelay", // forbidden
@@ -86,7 +86,8 @@ object App {
             .show()
 
         df = df.filter(df("Cancelled") === 0)
-        df = df.drop("Cancelled")
+            .filter(df("ArrDelay").isNotNull)
+            .drop("Cancelled")
 
         for (colName <- Array("DepTime", "ArrDelay", "DepDelay", "TaxiOut")) {
             df = df.withColumn(colName, df.col(colName).cast(DoubleType))
@@ -99,9 +100,10 @@ object App {
         println("Checking for null values")
         for (colName <- df.columns) {
             val c: DataFrame = df.select(sum(df.col(colName).isNull.cast(IntegerType)))
-            if (c.rdd.map(_ (0).asInstanceOf[Long]).reduce(_ + _) > 0) {
-                c.show
-            }
+            c.show
+            //if (c.rdd.map(_ (0).asInstanceOf[Long]).reduce(_ + _) > 0) {
+            //    c.show
+            //}
         }
 
         df.select(min("ArrDelay"), max("ArrDelay")).show
@@ -136,7 +138,7 @@ object App {
         df.printSchema()
         df.show()
 
-        val assembler = new VectorAssembler()
+        var assembler = new VectorAssembler()
             //.setInputCols(df.columns.drop(df.columns.indexOf("ArrDelay")))
             .setInputCols(df.columns)
             .setOutputCol("features")
@@ -180,14 +182,14 @@ object App {
 
         // Automatically identify categorical features, and index them.
         // Set maxCategories so features with > 4 distinct values are treated as continuous.
-        val featureIndexer = new VectorIndexer()
+        var featureIndexer = new VectorIndexer()
             .setInputCol("features")
             .setOutputCol("indexedFeatures")
             .setMaxCategories(4)
             .fit(data)
 
         // Split the data into training and test sets (30% held out for testing).
-        val Array(trainingData, testData) = data.randomSplit(Array(0.7, 0.3))
+        var Array(trainingData, testData) = data.randomSplit(Array(0.7, 0.3), 42)
 
         // Train a RandomForest model.
         val rfc = new RandomForestClassifier()
@@ -250,16 +252,46 @@ object App {
             .setPredictionCol("prediction")
             .setMetricName("rmse")
 
-        val rmse = regressionEvaluator.evaluate(predictions)
-        val r2 = regressionEvaluator
-            .setMetricName("r2")
-            .evaluate(predictions)
+        var rmse = regressionEvaluator.evaluate(predictions)
 
         println("Root Mean Squared Error (RMSE) on test data = " + rmse)
-        println(s"r2: ${r2}")
 
         //val rfModel = model.stages(1).asInstanceOf[RandomForestRegressionModel]
         //println("Learned regression forest model:\n" + rfModel.toDebugString)
+
+
+        df.printSchema
+
+        assembler = new VectorAssembler()
+            //.setInputCols(df.columns.drop(df.columns.indexOf("ArrDelay")))
+            .setInputCols(df.drop("TaxiOut").columns)
+            .setOutputCol("features")
+
+        data = assembler.transform(df)
+        data = data.withColumn("label", data.col("ArrDelay"))
+
+        featureIndexer = new VectorIndexer()
+            .setInputCol("features")
+            .setOutputCol("indexedFeatures")
+            .setMaxCategories(4)
+            .fit(data)
+
+
+        val Array(trainingData2, testData2) = data.randomSplit(Array(0.7, 0.3), 42)
+
+        pipeline = new Pipeline()
+            .setStages(Array(featureIndexer, rfr))
+
+        model = pipeline.fit(trainingData2)
+
+        // Make predictions.
+        predictions = model.transform(testData2)
+
+        // Select example rows to display.
+        predictions.select("prediction", "label", "features").show(5)
+
+        rmse = regressionEvaluator.evaluate(predictions)
+        println("Root Mean Squared Error (RMSE) on test data = " + rmse)
     }
 }
 
