@@ -94,9 +94,9 @@ object App {
 
         df = df.filter(df("ArrDelay").isNotNull)
 
-        //for (colName <- df.columns) {
-        //    df.select(df(colName)).distinct.show()
-        //}
+        for (colName <- df.columns) {
+            df.select(df(colName)).distinct.show()
+        }
 
         println("Checking for null values")
         for (colName <- df.columns) {
