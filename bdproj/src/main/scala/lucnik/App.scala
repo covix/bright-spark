@@ -172,7 +172,7 @@ object App {
                     .drop(colName + "Index", colName + "Vec")
 
                 // TODO remove this line
-                df = df.drop(colName)
+                //df = df.drop(colName)
             }
         }
 
