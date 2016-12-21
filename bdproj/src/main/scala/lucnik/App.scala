@@ -93,6 +93,9 @@ object App {
         println("Dropping flights with null values for ArrDelay")
         df = df.filter(df("ArrDelay").isNotNull)
 
+        println("Creating column DayOfYear")
+        df = df.withColumn("DayOfYear", dayofyear(concat_ws("-", $"Year", $"Month", $"DayOfMonth")))
+
         println("Dropping columns which have only null values")
         var onlyNullValues = Array[String]()
         for (colName <- df.columns) {
@@ -148,9 +151,6 @@ object App {
                 df = df.withColumn(colName, expr(s"cast($colName / 100 as int)"))
             }
         }
-
-        println("Creating column DayOfYear")
-        df = df.withColumn("DayOfYear", dayofyear(concat_ws("-", $"Year", $"Month", $"DayOfMonth")))
 
         println("Using OneHotEncoders for categorical variables")
         for (colName <- Array("Origin", "Dest", "Year", "Month", "DayOfMonth", "DayOfWeek", "DayOfYear")) {
