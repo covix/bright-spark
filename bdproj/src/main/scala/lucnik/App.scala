@@ -15,8 +15,6 @@ import org.apache.spark.sql.types.{DoubleType, IntegerType}
 
 object App {
     def main(args: Array[String]) {
-        val dataLocation = args(0)
-
         val conf = new SparkConf().setAppName("Big Data Project")
         val sc = new SparkContext(conf)
 
@@ -28,6 +26,11 @@ object App {
             .getOrCreate()
 
         import spark.implicits._
+
+        val dataLocation = args(0)
+        // TODO debug
+        //println("DATA LOCATION IS FIXED")
+        //val dataLocation = "./data/2008_1000.csv"
 
         Logger.getRootLogger.setLevel(Level.WARN)
         Logger.getRootLogger.log(Level.DEBUG, s"Loading data from: $dataLocation")
@@ -41,7 +44,7 @@ object App {
         val columnNames = Seq(
             "Year",
             "Month",
-            "DayofMonth",
+            "DayOfMonth",
             "DayOfWeek",
             "DepTime",
             "CRSDepTime",
@@ -54,7 +57,7 @@ object App {
             "CRSElapsedTime",
             //"AirTime", // forbidden
             "ArrDelay", // target
-            "DepDelay", // wat?
+            "DepDelay",
             "Origin",
             "Dest",
             "Distance",
@@ -75,42 +78,65 @@ object App {
 
         // could not be needed the print
         df.printSchema
-        df.show(10)
+        df.show
 
-        df.select(df("DayOfWeek")).distinct.show()
-        df.select(df("TaxiOut")).distinct.show()
-
-        // TODO what to do with cancelled flights?
-        df.filter(df("Cancelled") === 1)
-            .select("Cancelled", "TaxiOut", "DepTime")
-            .distinct()
-            .show()
-
+        println("Dropping cancelled flights")
         df = df.filter(df("Cancelled") === 0)
             .drop("Cancelled")
 
+        println("Casting columns to double")
+        // TODO shall we cast every column?
         for (colName <- Array("DepTime", "ArrDelay", "DepDelay", "TaxiOut", "CRSElapsedTime")) {
             df = df.withColumn(colName, df.col(colName).cast(DoubleType))
         }
 
+        println("Dropping flights with null values for ArrDelay")
         df = df.filter(df("ArrDelay").isNotNull)
 
+        println("Dropping column which have only null values")
+        var singleCatValue = Array[String]()
         for (colName <- df.columns) {
-            //df.select(df(colName)).distinct.show()
+            if (df.select(df.col(colName)).count == df.filter(df.col(colName).isNull).count) {
+                println(s"\t Dropping $colName")
+                singleCatValue +:= colName
+            }
+        }
+        df = df.drop(singleCatValue: _*)
 
-            spark.sql(s"SELECT $colName, COUNT($colName) AS cnt " +
-                s"FROM df " +
-                s"GROUP BY $colName").sort($"$colName".desc).show
+        println("Describing dataset")
+        df.describe().show
+
+        println("Dropping column with only one categorical value")
+        for (colName <- df.columns) {
+            if (df.select(countDistinct(colName)).head.getLong(0) == 1) {
+                df = df.drop((colName))
+            }
         }
 
-        //println("Checking for null values")
-        //for (colName <- df.columns) {
-        //    val c: DataFrame = df.select(sum(df.col(colName).isNull.cast(IntegerType)))
-        //    c.show
-        //    //if (c.rdd.map(_ (0).asInstanceOf[Long]).reduce(_ + _) > 0) {
-        //    //    c.show
-        //    //}
-        //}
+        df.printSchema
+
+        println("Computing correlation coefficients")
+        for (colName <- Array("DayOfWeek", "DepTime", "CRSDepTime", "CRSArrTime", "CRSElapsedTime", "DepDelay", "Distance", "TaxiOut")) {
+            if (df.columns contains colName) {
+                var colNameDf = df.select(colName, "ArrDelay")
+                var colNameEff = colName
+
+                val corr = colNameDf.stat.corr(colNameEff, "ArrDelay")
+                println(s"\t$corr => $colName")
+            }
+        }
+
+        println("Showing values per each table")
+        for (colName <- df.columns) {
+            spark.sql(s"SELECT $colName, COUNT($colName) AS cnt " +
+                s"FROM df " +
+                s"GROUP BY $colName").sort($"$colName".desc)
+        }
+
+        println("Checking for null values")
+        for (colName <- df.columns) {
+            df.select(sum(df.col(colName).isNull.cast(IntegerType))).show
+        }
 
         println("Drop all NA!!!")
         df = df.na.drop()
@@ -121,11 +147,14 @@ object App {
 
         println("Converting hhmm times to hour buckets")
         for (colName <- Array("DepTime", "CRSDepTime", "CRSArrTime")) {
-            df = df.withColumn(colName, expr(s"cast($colName / 100 as int)"))
+            if (df.columns contains colName) {
+                df = df.withColumn(colName, expr(s"cast($colName / 100 as int)"))
+            }
         }
 
-        println("One Hot Encoding")
+        println("Using OneHotEncoders for categorical variables")
         for (colName <- Array("Origin", "Dest")) {
+            println(s"\tTransforming $colName")
             val indexer = new StringIndexer()
                 .setInputCol(colName)
                 .setOutputCol(colName + "Index")
@@ -141,23 +170,30 @@ object App {
                 .drop(colName + "Index", colName + "Vec")
 
             // TODO remove this line
-            df = df.drop(colName)
+            //df = df.drop(colName)
         }
 
-        df.printSchema()
-        df.show()
+        df.printSchema
+        df.show
 
+        //var assembler = new VectorAssembler()
+        //    //.setInputCols(df.columns.drop(df.columns.indexOf("ArrDelay")))
+        //    .setInputCols(df.columns)
+        //    .setOutputCol("features")
+
+        println("Using only one columns")
         var assembler = new VectorAssembler()
             //.setInputCols(df.columns.drop(df.columns.indexOf("ArrDelay")))
-            .setInputCols(df.columns)
+            .setInputCols(Array("DepDelay"))
             .setOutputCol("features")
+
         var data = assembler.transform(df)
 
         data = data.withColumn("label", data.col("ArrDelay"))
 
         data.printSchema()
         data.show()
-        //
+
         ////val model = new LogisticRegression()
         ////    .setLabelCol("ArrDelay")
         ////    .setMaxIter(10)
@@ -268,40 +304,41 @@ object App {
         //val rfModel = model.stages(1).asInstanceOf[RandomForestRegressionModel]
         //println("Learned regression forest model:\n" + rfModel.toDebugString)
 
-
-        df.printSchema
-
-        assembler = new VectorAssembler()
-            //.setInputCols(df.columns.drop(df.columns.indexOf("ArrDelay")))
-            .setInputCols(df.drop("TaxiOut").columns)
-            .setOutputCol("features")
-
-        data = assembler.transform(df)
-        data = data.withColumn("label", data.col("ArrDelay"))
-
-        featureIndexer = new VectorIndexer()
-            .setInputCol("features")
-            .setOutputCol("indexedFeatures")
-            .setMaxCategories(4)
-            .fit(data)
-
-
-        val Array(trainingData2, testData2) = data.randomSplit(Array(0.7, 0.3), 42)
-
-        pipeline = new Pipeline()
-            .setStages(Array(featureIndexer, rfr))
-
-        model = pipeline.fit(trainingData2)
-
-        // Make predictions.
-        predictions = model.transform(testData2)
-
-        // Select example rows to display.
-        predictions.select("prediction", "label", "features").show(5)
-
-        rmse = regressionEvaluator.evaluate(predictions)
-        println("Root Mean Squared Error (RMSE) on test data = " + rmse)
+        //
+        //df.printSchema
+        //
+        //assembler = new VectorAssembler()
+        //    //.setInputCols(df.columns.drop(df.columns.indexOf("ArrDelay")))
+        //    .setInputCols(df.drop("TaxiOut").columns)
+        //    .setOutputCol("features")
+        //
+        //data = assembler.transform(df)
+        //data = data.withColumn("label", data.col("ArrDelay"))
+        //
+        //featureIndexer = new VectorIndexer()
+        //    .setInputCol("features")
+        //    .setOutputCol("indexedFeatures")
+        //    .setMaxCategories(4)
+        //    .fit(data)
+        //
+        //
+        //val Array(trainingData2, testData2) = data.randomSplit(Array(0.7, 0.3), 42)
+        //
+        //pipeline = new Pipeline()
+        //    .setStages(Array(featureIndexer, rfr))
+        //
+        //model = pipeline.fit(trainingData2)
+        //
+        //// Make predictions.
+        //predictions = model.transform(testData2)
+        //
+        //// Select example rows to display.
+        //predictions.select("prediction", "label", "features").show(5)
+        //
+        //rmse = regressionEvaluator.evaluate(predictions)
+        //println("Root Mean Squared Error (RMSE) on test data = " + rmse)
     }
+
 }
 
 
