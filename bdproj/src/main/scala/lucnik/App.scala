@@ -74,7 +74,6 @@ object App {
         )
 
         df = df.select(columnNames.head, columnNames.tail: _*)
-        df.createOrReplaceTempView("df")
 
         // could not be needed the print
         df.printSchema
@@ -129,7 +128,9 @@ object App {
             }
         }
 
-        println("Showing values per each table")
+        df.createOrReplaceTempView("df")
+
+        println("Showing values for each column")
         for (colName <- df.columns) {
             spark.sql(s"SELECT $colName, COUNT($colName) AS cnt " +
                 s"FROM df " +
