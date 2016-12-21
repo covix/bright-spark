@@ -149,8 +149,11 @@ object App {
             }
         }
 
+        println("Creating column DayOfYear")
+        df = df.withColumn("DayOfYear", dayofyear(concat_ws("-", $"Year", $"Month", $"DayOfMonth")))
+
         println("Using OneHotEncoders for categorical variables")
-        for (colName <- Array("Origin", "Dest", "Year", "Month", "DayOfMonth", "DayOfWeek")) {
+        for (colName <- Array("Origin", "Dest", "Year", "Month", "DayOfMonth", "DayOfWeek", "DayOfYear")) {
             if (df.columns contains colName) {
                 println(s"\tTransforming $colName")
                 val indexer = new StringIndexer()
@@ -171,6 +174,8 @@ object App {
                 df = df.drop(colName)
             }
         }
+
+        println(s"Numble of examples: " + df.count())
 
         df.printSchema
         df.show
@@ -266,10 +271,12 @@ object App {
         //println("Learned classification forest model:\n" + rfModel.toDebugString)
 
         // Train a RandomForest model.
-        println("Random forest regressor")
+        val nTrees = 100
+        println(s"Random forest regressor ($nTrees trees)")
         val rfr = new RandomForestRegressor()
             .setLabelCol("label")
             .setFeaturesCol("indexedFeatures")
+            .setNumTrees(nTrees)
 
         // Chain indexer and forest in a Pipeline.
         pipeline = new Pipeline()
@@ -291,8 +298,13 @@ object App {
             .setMetricName("rmse")
 
         var rmse = regressionEvaluator.evaluate(predictions)
+        var r2 = regressionEvaluator
+            .setMetricName("r2")
+            .evaluate(predictions)
 
         println("Root Mean Squared Error (RMSE) on test data = " + rmse)
+        println(s"R^2 on test data: $r2")
+
 
         //val rfModel = model.stages(1).asInstanceOf[RandomForestRegressionModel]
         //println("Learned regression forest model:\n" + rfModel.toDebugString)
@@ -329,7 +341,13 @@ object App {
         //predictions.select("prediction", "label", "features").show(5)
         //
         //rmse = regressionEvaluator.evaluate(predictions)
+        //
+        //r2 = regressionEvaluator
+        //    .setMetricName("r2")
+        //    .evaluate(predictions)
+        //
         //println("Root Mean Squared Error (RMSE) on test data = " + rmse)
+        //println(s"R^2 on test data: $r2")
     }
 
 }
