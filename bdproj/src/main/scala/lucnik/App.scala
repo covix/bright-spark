@@ -93,35 +93,35 @@ object App {
         println("Dropping flights with null values for ArrDelay")
         df = df.filter(df("ArrDelay").isNotNull)
 
-        println("Dropping column which have only null values")
-        var singleCatValue = Array[String]()
+        println("Dropping columns which have only null values")
+        var onlyNullValues = Array[String]()
         for (colName <- df.columns) {
             if (df.select(df.col(colName)).count == df.filter(df.col(colName).isNull).count) {
+                println(s"\t Dropping $colName")
+                onlyNullValues +:= colName
+            }
+        }
+        df = df.drop(onlyNullValues: _*)
+
+        println("Describing dataset")
+        df.describe().show
+
+        println("Dropping columns with only one categorical value")
+        var singleCatValue = Array[String]()
+        for (colName <- df.columns) {
+            if (df.select(countDistinct(colName)).head.getLong(0) == 1) {
                 println(s"\t Dropping $colName")
                 singleCatValue +:= colName
             }
         }
         df = df.drop(singleCatValue: _*)
 
-        println("Describing dataset")
-        df.describe().show
-
-        println("Dropping column with only one categorical value")
-        for (colName <- df.columns) {
-            if (df.select(countDistinct(colName)).head.getLong(0) == 1) {
-                df = df.drop((colName))
-            }
-        }
-
         df.printSchema
 
         println("Computing correlation coefficients")
         for (colName <- Array("DayOfWeek", "DepTime", "CRSDepTime", "CRSArrTime", "CRSElapsedTime", "DepDelay", "Distance", "TaxiOut")) {
             if (df.columns contains colName) {
-                var colNameDf = df.select(colName, "ArrDelay")
-                var colNameEff = colName
-
-                val corr = colNameDf.stat.corr(colNameEff, "ArrDelay")
+                val corr = df.stat.corr(colName, "ArrDelay")
                 println(s"\t$corr => $colName")
             }
         }
@@ -141,50 +141,43 @@ object App {
         println("Drop all NA!!!")
         df = df.na.drop()
 
-        df.select(min("ArrDelay"), max("ArrDelay")).show
-
-        df.printSchema
-
         println("Converting hhmm times to hour buckets")
         for (colName <- Array("DepTime", "CRSDepTime", "CRSArrTime")) {
+            println(s"\tConverting $colName")
             if (df.columns contains colName) {
                 df = df.withColumn(colName, expr(s"cast($colName / 100 as int)"))
             }
         }
 
         println("Using OneHotEncoders for categorical variables")
-        for (colName <- Array("Origin", "Dest")) {
-            println(s"\tTransforming $colName")
-            val indexer = new StringIndexer()
-                .setInputCol(colName)
-                .setOutputCol(colName + "Index")
-                .fit(df)
-            val indexed = indexer.transform(df)
+        for (colName <- Array("Origin", "Dest", "Year", "Month", "DayOfMonth", "DayOfWeek")) {
+            if (df.columns contains colName) {
+                println(s"\tTransforming $colName")
+                val indexer = new StringIndexer()
+                    .setInputCol(colName)
+                    .setOutputCol(colName + "Index")
+                    .fit(df)
+                val indexed = indexer.transform(df)
 
-            val encoder = new OneHotEncoder()
-                .setInputCol(colName + "Index")
-                .setOutputCol(colName + "Vec")
-            df = encoder.transform(indexed)
+                val encoder = new OneHotEncoder()
+                    .setInputCol(colName + "Index")
+                    .setOutputCol(colName + "Vec")
+                df = encoder.transform(indexed)
 
-            df = df.withColumn(colName, df.col(colName + "Vec"))
-                .drop(colName + "Index", colName + "Vec")
+                df = df.withColumn(colName, df.col(colName + "Vec"))
+                    .drop(colName + "Index", colName + "Vec")
 
-            // TODO remove this line
-            //df = df.drop(colName)
+                // TODO remove this line
+                df = df.drop(colName)
+            }
         }
 
         df.printSchema
         df.show
 
-        //var assembler = new VectorAssembler()
-        //    //.setInputCols(df.columns.drop(df.columns.indexOf("ArrDelay")))
-        //    .setInputCols(df.columns)
-        //    .setOutputCol("features")
-
-        println("Using only one columns")
         var assembler = new VectorAssembler()
             //.setInputCols(df.columns.drop(df.columns.indexOf("ArrDelay")))
-            .setInputCols(Array("DepDelay"))
+            .setInputCols(df.columns)
             .setOutputCol("features")
 
         var data = assembler.transform(df)
