@@ -211,14 +211,14 @@ object App {
         var data = assembler.transform(df).select("features", "ArrDelay")
         data = data.withColumnRenamed("ArrDelay", "label")
 
-        println("Feature selection")
-        val selector = new ChiSqSelector()
-            .setNumTopFeatures(10)
-            .setFeaturesCol("features")
-            .setOutputCol("selectedFeatures")
-            .fit(data)
-
-        data = selector.transform(data)
+//        println("Feature selection")
+//        val selector = new ChiSqSelector()
+//            .setNumTopFeatures(10)
+//            .setFeaturesCol("features")
+//            .setOutputCol("selectedFeatures")
+//            .fit(data)
+//
+//        data = selector.transform(data)
 
         data.printSchema()
         data.show()
@@ -257,7 +257,7 @@ object App {
         // Automatically identify categorical features, and index them.
         // Set maxCategories so features with > 4 distinct values are treated as continuous.
         var featureIndexer = new VectorIndexer()
-            .setInputCol("selectedFeatures")
+            .setInputCol("features")
             .setOutputCol("indexedFeatures")
             .fit(data)
 
