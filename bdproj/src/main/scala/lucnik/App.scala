@@ -215,13 +215,14 @@ object App {
 
         println("Training Classifier")
 
-
         println("Feature selection")
         val featureSelector = new ChiSqSelector()
             .setNumTopFeatures(10)
             .setFeaturesCol("features")
             .setOutputCol("selectedFeatures")
             .fit(data)
+
+        data = featureSelector.transform(data)
 
         println("Index of selected features: " + featureSelector.selectedFeatures.mkString(", "))
 
@@ -231,7 +232,6 @@ object App {
             .setInputCol("selectedFeatures")
             .setOutputCol("indexedFeatures")
             .fit(data)
-
 
         // Split the data into training and test sets (30% held out for testing).
         var Array(trainingData, testData) = data.randomSplit(Array(0.7, 0.3), 42)
