@@ -51,7 +51,7 @@ object App {
             "CRSDepTime",
             //"ArrTime", // forbidden
             "CRSArrTime",
-            //"UniqueCarrier",  // TODO use it
+            "UniqueCarrier", // TODO use it
             //"FlightNum", // TODO think on it
             //"TailNum",  // mmm
             //"ActualElapsedTime", // forbidden
@@ -86,7 +86,7 @@ object App {
 
         println("Casting columns to double")
         // TODO shall we cast every column?
-        for (colName <- Array("DepTime", "ArrDelay", "DepDelay", "TaxiOut", "CRSElapsedTime", "Distance")) {
+        for (colName <- Array("DepTime", "ArrDelay", "DepDelay", "TaxiOut", "CRSElapsedTime", "CRSArrTime", "Distance")) {
             df = df.withColumn(colName, df.col(colName).cast(DoubleType))
         }
 
@@ -112,8 +112,10 @@ object App {
         println("Dropping columns with only one categorical value")
         var singleCatValue = Array[String]()
         for (colName <- df.columns) {
-            if (df.select(countDistinct(colName)).head.getLong(0) == 1) {
-                println(s"\t Dropping $colName")
+            val distinctCount = df.select(countDistinct(colName)).head.getLong(0)
+            println(s"\tDistinct values for $colName: $distinctCount")
+            if (distinctCount == 1) {
+                println(s"\t\t => Dropping $colName")
                 singleCatValue +:= colName
             }
         }
@@ -146,6 +148,23 @@ object App {
         println("Drop all NA!!!")
         df = df.na.drop()
 
+
+        val bucketSize = 250
+        println(s"Bucketizing Distance (bucketSize = $bucketSize")
+        val distMax = (df.select(max($"Distance")).head.getDouble(0) + 1).asInstanceOf[Int]
+        var buckets = Array[Double](0)
+        for (i <- bucketSize to distMax + bucketSize by bucketSize) {
+            buckets :+= i.asInstanceOf[Double]
+        }
+
+        val bucketizer = new Bucketizer()
+            .setInputCol("Distance")
+            .setOutputCol("DistanceBucket")
+            .setSplits(buckets)
+
+        // Transform original data into its bucket index.
+        df = bucketizer.transform(df).drop("Distance").withColumnRenamed("DistanceBucket", "Distance")
+
         println("Converting hhmm times to hour buckets")
         for (colName <- Array("DepTime", "CRSDepTime", "CRSArrTime")) {
             println(s"\tConverting $colName")
@@ -155,7 +174,7 @@ object App {
         }
 
         println("Using OneHotEncoders for categorical variables")
-        for (colName <- Array("Origin", "Dest", "Year", "Month", "DayOfMonth", "DayOfWeek", "DayOfYear")) {
+        for (colName <- Array("Origin", "Dest", "Year", "Month", "DayOfMonth", "DayOfWeek", "DayOfYear", "UniqueCarrier")) {
             if (df.columns contains colName) {
                 println(s"\tTransforming $colName")
                 val indexer = new StringIndexer()
@@ -191,6 +210,15 @@ object App {
 
         var data = assembler.transform(df).select("features", "ArrDelay")
         data = data.withColumnRenamed("ArrDelay", "label")
+
+        println("Feature selection")
+        val selector = new ChiSqSelector()
+            .setNumTopFeatures(10)
+            .setFeaturesCol("features")
+            .setOutputCol("selectedFeatures")
+            .fit(data)
+
+        data = selector.transform(data)
 
         data.printSchema()
         data.show()
@@ -229,7 +257,7 @@ object App {
         // Automatically identify categorical features, and index them.
         // Set maxCategories so features with > 4 distinct values are treated as continuous.
         var featureIndexer = new VectorIndexer()
-            .setInputCol("features")
+            .setInputCol("selectedFeatures")
             .setOutputCol("indexedFeatures")
             .fit(data)
 
@@ -326,7 +354,9 @@ object App {
         // With 3 values for hashingTF.numFeatures and 2 values for lr.regParam,
         // this grid will have 3 x 2 = 6 parameter settings for CrossValidator to choose from.
         val paramGrid = new ParamGridBuilder()
-            .addGrid(rfr.numTrees, Array(10, 50, 100))
+            .addGrid(rfr.numTrees, Array(50, 100, 500))
+//            .addGrid(rfr.impurity, Array("gini", "entropy"))
+            .addGrid(rfr.maxDepth, Array(5, 10, 50))
             .build()
 
         val regressionEvaluator = new RegressionEvaluator()
@@ -346,7 +376,11 @@ object App {
         val bestPipelineModel = cvModel.bestModel.asInstanceOf[PipelineModel]
         val stages = bestPipelineModel.stages
         val rfrStage = stages.last.asInstanceOf[RandomForestRegressionModel]
-        println("Number of trees for the best model: " + rfrStage.getNumTrees)
+        println("Best model params:")
+        println("\tNumber of trees for the best model: " + rfrStage.getNumTrees)
+        println("\tImpurity for the best model: " + rfrStage.getImpurity)
+        println("\tMaxDepth for the best model: " + rfrStage.getMaxDepth)
+        println()
         println("Features " + rfrStage.featureImportances)
 
         // Make predictions.
