@@ -356,8 +356,7 @@ object App {
         // With 3 values for hashingTF.numFeatures and 2 values for lr.regParam,
         // this grid will have 3 x 2 = 6 parameter settings for CrossValidator to choose from.
         val paramGrid = new ParamGridBuilder()
-            .addGrid(rfr.numTrees, Array(50, 100, 500))
-//            .addGrid(rfr.impurity, Array("gini", "entropy"))
+            .addGrid(rfr.numTrees, Array(50, 100))
             .addGrid(rfr.maxDepth, Array(5, 10))
             .build()
 
