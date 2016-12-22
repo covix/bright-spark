@@ -79,7 +79,7 @@ object App {
             df = df.withColumn(colName, df.col(colName).cast(DoubleType))
         }
 
-        println("Dropping flights with null values for ArrDelay")
+        println("Filtering out flights with null values for ArrDelay")
         df = df.filter(df("ArrDelay").isNotNull)
 
         println("Creating column DayOfYear")
@@ -112,7 +112,7 @@ object App {
 
         df.printSchema
 
-        println("Computing correlation coefficients")
+        println("Computing linear correlation coefficients")
         for (colName <- Array("DayOfWeek", "DepTime", "CRSDepTime", "CRSArrTime", "CRSElapsedTime", "DepDelay", "Distance", "TaxiOut")) {
             if (df.columns contains colName) {
                 val corr = df.stat.corr(colName, "ArrDelay")
@@ -129,7 +129,7 @@ object App {
                 s"GROUP BY $colName").sort($"$colName".desc)
         }
 
-        println("Checking for null values")
+        println("Counting null values in each column")
         for (colName <- df.columns) {
             df.select(sum(df.col(colName).isNull.cast(IntegerType))).show
         }
@@ -143,7 +143,7 @@ object App {
         val bucketSize = 1.0 * (distMax - distMin) / nBuckets
 
         var buckets = Array[Double](distMin)
-        println(s"Bucketizing Distance (bucketSize = $bucketSize)")
+        println(s"Arranging Distance into buckets (bucketSize = $bucketSize)")
         for (i <- 1 to nBuckets) {
             buckets :+= distMin + i * bucketSize
         }
