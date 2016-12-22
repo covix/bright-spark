@@ -343,7 +343,7 @@ object App {
         // Run cross-validation, and choose the best set of parameters.
         val cvModel = cv.fit(trainingData)
 
-        println("Best models params :" + cvModel.bestModel.))
+        println("Best models params :" + cvModel.bestModel.explainParams()))
 
         // Make predictions.
         var predictions = cvModel.transform(testData)
