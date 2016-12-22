@@ -146,7 +146,7 @@ object App {
         println("Drop all NA!!!")
         df = df.na.drop()
 
-        val nBuckets = 5
+        val nBuckets = 6
         val distMax = (df.select(max($"Distance")).head.getDouble(0) + 1).asInstanceOf[Int]
         val distMin = df.select(min($"Distance")).head.getDouble(0).asInstanceOf[Int]
         val bucketSize = 1.0 * (distMax - distMin) / nBuckets
