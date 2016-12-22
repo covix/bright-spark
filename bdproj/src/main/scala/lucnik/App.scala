@@ -146,7 +146,7 @@ object App {
         println("Drop all NA!!!")
         df = df.na.drop()
 
-        val nBuckets = 10
+        val nBuckets = 7
         val distMax = (df.select(max($"Distance")).head.getDouble(0) + 1).asInstanceOf[Int]
         val distMin = df.select(min($"Distance")).head.getDouble(0).asInstanceOf[Int]
         val bucketSize = 1.0 * (distMax - distMin) / nBuckets
@@ -290,7 +290,7 @@ object App {
         var predictions = cvModel.transform(testData)
 
         // Select example rows to display.
-        predictions.select("prediction", "label", "features").show
+        predictions.select("prediction", "label", "selectedFeatures").show
 
         // Select (prediction, true label) and compute test error.
         var rmse = regressionEvaluator.evaluate(predictions)
