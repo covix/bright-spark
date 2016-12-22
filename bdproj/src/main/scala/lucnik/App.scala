@@ -148,14 +148,20 @@ object App {
 
         val distMax = (df.select(max($"Distance")).head.getDouble(0) + 1).asInstanceOf[Int]
         val distMin = df.select(min($"Distance")).head.getDouble(0).asInstanceOf[Int]
-        val bucketSize = (distMax - distMin) / 3.0
+        val bucketSize = ((distMax - distMin) / 3) + 1
+
+        println("DEBUG")
+        println(distMax)
+        println(distMin)
+        println(bucketSize)
 
         var buckets = Array[Double](distMin)
         println(s"Bucketizing Distance (bucketSize = $bucketSize")
         for (i <- distMin + bucketSize to distMax by bucketSize) {
+            println(i)
             buckets :+= i.asInstanceOf[Double]
         }
-        println("\tNumber fo buckets: " + (buckets.length - 1))
+        println("\tNumber of buckets: " + (buckets.length - 1))
         println(s"\tBuckets: " + buckets.mkString(", "))
 
         val bucketizer = new Bucketizer()
