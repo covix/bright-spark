@@ -220,7 +220,7 @@ object App {
         data.show()
 
 
-        println("Trainin Classifier")
+        println("Training Classifier")
 
         // Index labels, adding metadata to the label column.
         // Fit on whole dataset to include all labels in index.
@@ -253,8 +253,8 @@ object App {
         // With 3 values for hashingTF.numFeatures and 2 values for lr.regParam,
         // this grid will have 3 x 2 = 6 parameter settings for CrossValidator to choose from.
         val paramGrid = new ParamGridBuilder()
-            .addGrid(rfr.numTrees, Array(50, 100))
-            .addGrid(rfr.maxDepth, Array(5, 10))
+            .addGrid(rfr.numTrees, Array(10, 50, 100))
+            .addGrid(rfr.maxDepth, Array(5, 15))
             .build()
 
         val regressionEvaluator = new RegressionEvaluator()
@@ -266,7 +266,7 @@ object App {
             .setEstimator(pipeline)
             .setEvaluator(regressionEvaluator)
             .setEstimatorParamMaps(paramGrid)
-            .setNumFolds(5) // Use 3+ in practice
+            .setNumFolds(5)
 
         // Run cross-validation, and choose the best set of parameters.
         val cvModel = cv.fit(trainingData)
