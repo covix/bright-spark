@@ -257,8 +257,9 @@ object App {
 
         // Automatically identify categorical features, and index them.
         // Set maxCategories so features with > 4 distinct values are treated as continuous.
+        println("NOT USING SELECTED FEATURES")
         var featureIndexer = new VectorIndexer()
-            .setInputCol("selectedFeatures")
+            .setInputCol("features")
             .setOutputCol("indexedFeatures")
             .fit(data)
 
@@ -357,7 +358,7 @@ object App {
         val paramGrid = new ParamGridBuilder()
             .addGrid(rfr.numTrees, Array(50, 100, 500))
 //            .addGrid(rfr.impurity, Array("gini", "entropy"))
-            .addGrid(rfr.maxDepth, Array(5, 10, 50))
+            .addGrid(rfr.maxDepth, Array(5, 10))
             .build()
 
         val regressionEvaluator = new RegressionEvaluator()
