@@ -4,15 +4,7 @@
     <artifactId>bdproj</artifactId>
     <version>1.0-SNAPSHOT</version>
     <name>${project.artifactId}</name>
-    <description>My wonderfull scala app</description>
     <inceptionYear>2015</inceptionYear>
-    <licenses>
-        <license>
-            <name>My License</name>
-            <url>http://....</url>
-            <distribution>repo</distribution>
-        </license>
-    </licenses>
 
     <properties>
         <maven.compiler.source>1.6</maven.compiler.source>
