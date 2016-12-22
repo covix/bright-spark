@@ -197,7 +197,7 @@ object App {
             }
         }
 
-        println(s"Numble of examples: " + df.count())
+        println(s"Number of examples: " + df.count())
 
         df.printSchema
         df.show
@@ -209,29 +209,21 @@ object App {
         var data = assembler.transform(df).select("features", "ArrDelay")
         data = data.withColumnRenamed("ArrDelay", "label")
 
-        println("Feature selection")
-        val selector = new ChiSqSelector()
-            .setNumTopFeatures(10)
-            .setFeaturesCol("features")
-            .setOutputCol("selectedFeatures")
-            .fit(data)
-
-        println("Index of selected features: " + selector.selectedFeatures.mkString(", "))
-
-        data = selector.transform(data)
-
         data.printSchema()
         data.show()
 
 
         println("Training Classifier")
 
-        // Index labels, adding metadata to the label column.
-        // Fit on whole dataset to include all labels in index.
-        val labelIndexer = new StringIndexer()
-            .setInputCol("label")
-            .setOutputCol("indexedLabel")
+
+        println("Feature selection")
+        val featureSelector = new ChiSqSelector()
+            .setNumTopFeatures(10)
+            .setFeaturesCol("features")
+            .setOutputCol("selectedFeatures")
             .fit(data)
+
+        println("Index of selected features: " + featureSelector.selectedFeatures.mkString(", "))
 
         // Automatically identify categorical features, and index them.
         // Set maxCategories so features with > 4 distinct values are treated as continuous.
@@ -239,6 +231,7 @@ object App {
             .setInputCol("selectedFeatures")
             .setOutputCol("indexedFeatures")
             .fit(data)
+
 
         // Split the data into training and test sets (30% held out for testing).
         var Array(trainingData, testData) = data.randomSplit(Array(0.7, 0.3), 42)
@@ -251,7 +244,7 @@ object App {
 
         // Chain indexer and forest in a Pipeline.
         var pipeline = new Pipeline()
-            .setStages(Array(featureIndexer, rfr))
+            .setStages(Array(featureSelector, featureIndexer, rfr))
 
         // We use a ParamGridBuilder to construct a grid of parameters to search over.
         // With 3 values for hashingTF.numFeatures and 2 values for lr.regParam,
@@ -283,7 +276,7 @@ object App {
         println("\tMaxDepth for the best model: " + rfrStage.getMaxDepth)
         println()
 
-        println("Selected features (reminder): " + selector.selectedFeatures.mkString(", "))
+        println("Selected features (reminder): " + featureSelector.selectedFeatures.mkString(", "))
         println("Features " + rfrStage.featureImportances)
 
         // Make predictions.
