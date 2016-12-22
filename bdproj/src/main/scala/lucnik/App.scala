@@ -134,7 +134,7 @@ object App {
             df.select(sum(df.col(colName).isNull.cast(IntegerType))).show
         }
 
-        println("Drop all NA!!!")
+        println("Dropping rows with null values (they shouldn't be too much, check on the previous output)")
         df = df.na.drop()
 
         val nBuckets = 6
