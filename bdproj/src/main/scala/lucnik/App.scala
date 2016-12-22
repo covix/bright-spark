@@ -8,6 +8,7 @@ import org.apache.spark.ml.classification.{LogisticRegression, MultilayerPercept
 import org.apache.spark.ml.evaluation.{MulticlassClassificationEvaluator, RegressionEvaluator}
 import org.apache.spark.ml.feature._
 import org.apache.spark.ml.regression.{LinearRegression, RandomForestRegressionModel, RandomForestRegressor}
+import org.apache.spark.ml.tuning.{CrossValidator, ParamGridBuilder}
 import org.apache.spark.sql.{Column, DataFrame, SparkSession}
 import org.apache.spark.sql.functions.{countDistinct, _}
 import org.apache.spark.sql.types.{DoubleType, IntegerType}
@@ -85,7 +86,7 @@ object App {
 
         println("Casting columns to double")
         // TODO shall we cast every column?
-        for (colName <- Array("DepTime", "ArrDelay", "DepDelay", "TaxiOut", "CRSElapsedTime")) {
+        for (colName <- Array("DepTime", "ArrDelay", "DepDelay", "TaxiOut", "CRSElapsedTime", "Distance")) {
             df = df.withColumn(colName, df.col(colName).cast(DoubleType))
         }
 
@@ -161,20 +162,20 @@ object App {
                     .setInputCol(colName)
                     .setOutputCol(colName + "Index")
                     .fit(df)
-                //val indexed = indexer.transform(df)
-                df = indexer.transform(df)
+                val indexed = indexer.transform(df)
+                //df = indexer.transform(df)
 
-                //val encoder = new OneHotEncoder()
-                //    .setInputCol(colName + "Index")
-                //    .setOutputCol(colName + "Vec")
-                //df = encoder.transform(indexed)
-
-                //df = df.drop(colName)
-                //    .withColumnRenamed(colName + "Vec", colName)
-                //    .drop(colName + "Index")
+                val encoder = new OneHotEncoder()
+                    .setInputCol(colName + "Index")
+                    .setOutputCol(colName + "Vec")
+                df = encoder.transform(indexed)
 
                 df = df.drop(colName)
-                    .withColumnRenamed(colName + "Index", colName)
+                    .withColumnRenamed(colName + "Vec", colName)
+                    .drop(colName + "Index")
+
+                //df = df.drop(colName)
+                //    .withColumnRenamed(colName + "Index", colName)
             }
         }
 
@@ -230,7 +231,6 @@ object App {
         var featureIndexer = new VectorIndexer()
             .setInputCol("features")
             .setOutputCol("indexedFeatures")
-            .setMaxCategories(400)
             .fit(data)
 
         // Split the data into training and test sets (30% held out for testing).
@@ -246,27 +246,27 @@ object App {
         // specify layers for the neural network:
         // input layer of size 4 (features), two intermediate of size 5 and 4
         // and output of size 3 (classes)
-        val layers = Array[Int](df.columns.length - 1, 75, 100, data.select(countDistinct("label")).head.getLong(0).asInstanceOf[Int])
+        //val layers = Array[Int](df.columns.length - 1, 75, 100, data.select(countDistinct("label")).head.getLong(0).asInstanceOf[Int])
         // create the trainer and set its parameters
-        val trainer = new MultilayerPerceptronClassifier()
-            .setLabelCol("indexedLabel")
-            .setFeaturesCol("indexedFeatures")
-            //.setFeaturesCol("features")
-            .setLayers(layers)
-            .setBlockSize(128)
-            .setSeed(1234L)
-            .setMaxIter(1000)
-
-        // Convert indexed labels back to original labels.
-        val labelConverter = new IndexToString()
-            .setInputCol("prediction")
-            .setOutputCol("predictedLabel")
-            .setLabels(labelIndexer.labels)
-
-        // Chain indexers and forest in a Pipeline.
-        var pipeline = new Pipeline()
-            //.setStages(Array(labelIndexer, featureIndexer, trainer, labelConverter))
-            .setStages(Array(featureIndexer, labelIndexer, trainer, labelConverter))
+        //val trainer = new MultilayerPerceptronClassifier()
+        //    .setLabelCol("indexedLabel")
+        //    .setFeaturesCol("indexedFeatures")
+        //    //.setFeaturesCol("features")
+        //    .setLayers(layers)
+        //    .setBlockSize(128)
+        //    .setSeed(1234L)
+        //    .setMaxIter(1000)
+        //
+        //// Convert indexed labels back to original labels.
+        //val labelConverter = new IndexToString()
+        //    .setInputCol("prediction")
+        //    .setOutputCol("predictedLabel")
+        //    .setLabels(labelIndexer.labels)
+        //
+        //// Chain indexers and forest in a Pipeline.
+        //var pipeline = new Pipeline()
+        //    //.setStages(Array(labelIndexer, featureIndexer, trainer, labelConverter))
+        //    .setStages(Array(featureIndexer, labelIndexer, trainer, labelConverter))
 
         //var td = labelIndexer.transform(data)
         //td = featureIndexer.transform(td)
@@ -284,70 +284,82 @@ object App {
         //println("Root Mean Squared Error (RMSE) on test data = " + rmse)
 
 
-        // Train model. This also runs the indexers.
-        var model = pipeline.fit(trainingData)
-
-        // Make predictions.
-        var predictions = model.transform(testData)
-
-        // Select example rows to display.
-        predictions.select("predictedLabel", "label", "features").show
-
-        val multiClassEvaluator = new MulticlassClassificationEvaluator()
-            .setLabelCol("indexedLabel")
-            .setPredictionCol("prediction")
-            .setMetricName("accuracy")
-        val accuracy = multiClassEvaluator.evaluate(predictions)
-        println("Accuracy = " + accuracy)
-        //println("Test Error = " + (1.0 - accuracy))
-
-        val regressionEvaluator = new RegressionEvaluator()
-            .setLabelCol("label")
-            .setPredictionCol("prediction")
-            .setMetricName("rmse")
-
-        var rmse = regressionEvaluator.evaluate(predictions)
-        println("Root Mean Squared Error (RMSE) on test data = " + rmse)
-
-        //val rfModel = model.stages(2).asInstanceOf[RandomForestClassificationModel]
-        //println("Learned classification forest model:\n" + rfModel.toDebugString)
-
-        //// Train a RandomForest model.
-        //val nTrees = 25
-        //println(s"Random forest regressor ($nTrees trees)")
-        //val rfr = new RandomForestRegressor()
-        //    .setLabelCol("label")
-        //    .setFeaturesCol("indexedFeatures")
-        //    .setNumTrees(nTrees)
-        //
-        //// Chain indexer and forest in a Pipeline.
-        //pipeline = new Pipeline()
-        //    .setStages(Array(featureIndexer, rfr))
-        //
-        //// Train model. This also runs the indexer.
-        //model = pipeline.fit(trainingData)
+        //// Train model. This also runs the indexers.
+        //var model = pipeline.fit(trainingData)
         //
         //// Make predictions.
-        //predictions = model.transform(testData)
+        //var predictions = model.transform(testData)
         //
         //// Select example rows to display.
-        //predictions.select("prediction", "label", "features").show(5)
+        //predictions.select("predictedLabel", "label", "features").show
         //
-        //// Select (prediction, true label) and compute test error.
+        //val multiClassEvaluator = new MulticlassClassificationEvaluator()
+        //    .setLabelCol("indexedLabel")
+        //    .setPredictionCol("prediction")
+        //    .setMetricName("accuracy")
+        //val accuracy = multiClassEvaluator.evaluate(predictions)
+        //println("Accuracy = " + accuracy)
+        ////println("Test Error = " + (1.0 - accuracy))
+        //
         //val regressionEvaluator = new RegressionEvaluator()
         //    .setLabelCol("label")
         //    .setPredictionCol("prediction")
         //    .setMetricName("rmse")
         //
         //var rmse = regressionEvaluator.evaluate(predictions)
-        //var r2 = regressionEvaluator
-        //    .setMetricName("r2")
-        //    .evaluate(predictions)
-        //
-        ////var regressor = model.stages.last.asInstanceOf[RandomForestRegressionModel]
-        //
         //println("Root Mean Squared Error (RMSE) on test data = " + rmse)
-        //println(s"R^2 on test data: $r2")
+
+        //val rfModel = model.stages(2).asInstanceOf[RandomForestClassificationModel]
+        //println("Learned classification forest model:\n" + rfModel.toDebugString)
+
+        // Train a RandomForestRegressor model.
+        println(s"Random forest regressor")
+        val rfr = new RandomForestRegressor()
+            .setLabelCol("label")
+            .setFeaturesCol("indexedFeatures")
+
+        // Chain indexer and forest in a Pipeline.
+        var pipeline = new Pipeline()
+            .setStages(Array(featureIndexer, rfr))
+
+        // We use a ParamGridBuilder to construct a grid of parameters to search over.
+        // With 3 values for hashingTF.numFeatures and 2 values for lr.regParam,
+        // this grid will have 3 x 2 = 6 parameter settings for CrossValidator to choose from.
+        val paramGrid = new ParamGridBuilder()
+            .addGrid(rfr.numTrees, Array(10, 50, 100))
+            .build()
+
+        val regressionEvaluator = new RegressionEvaluator()
+            .setLabelCol("label")
+            .setPredictionCol("prediction")
+            .setMetricName("rmse")
+
+        val cv = new CrossValidator()
+            .setEstimator(pipeline)
+            .setEvaluator(regressionEvaluator)
+            .setEstimatorParamMaps(paramGrid)
+            .setNumFolds(5) // Use 3+ in practice
+
+        // Run cross-validation, and choose the best set of parameters.
+        val cvModel = cv.fit(trainingData)
+
+        // Make predictions.
+        var predictions = cvModel.transform(testData)
+
+        // Select example rows to display.
+        predictions.select("prediction", "label", "features").show
+
+
+        // Select (prediction, true label) and compute test error.
+        var rmse = regressionEvaluator.evaluate(predictions)
+        var r2 = regressionEvaluator
+            .setMetricName("r2")
+            .evaluate(predictions)
+
+        //var regressor = model.stages.last.asInstanceOf[RandomForestRegressionModel]
+
+        println("Root Mean Squared Error (RMSE) on test data = " + rmse)
+        println(s"R^2 on test data: $r2")
         //println("Learned regression forest model:\n" + regressor.toDebugString)
 
 
