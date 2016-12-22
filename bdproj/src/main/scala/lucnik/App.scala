@@ -146,14 +146,15 @@ object App {
         println("Drop all NA!!!")
         df = df.na.drop()
 
+        val nBuckets = 6
         val distMax = (df.select(max($"Distance")).head.getDouble(0) + 1).asInstanceOf[Int]
         val distMin = df.select(min($"Distance")).head.getDouble(0).asInstanceOf[Int]
-        val bucketSize = ((distMax - distMin) / 3) + 1
+        val bucketSize = 1.0 * (distMax - distMin) / nBuckets
 
         var buckets = Array[Double](distMin)
         println(s"Bucketizing Distance (bucketSize = $bucketSize)")
-        for (i <- 1 to 3) {
-            buckets :+= (distMin + i * bucketSize).asInstanceOf[Double]
+        for (i <- 1 to nBuckets) {
+            buckets :+= distMin + i * bucketSize
         }
         println("\tNumber of buckets: " + (buckets.length - 1))
         println(s"\tBuckets: " + buckets.mkString(", "))
