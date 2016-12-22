@@ -253,8 +253,8 @@ object App {
         // With 3 values for hashingTF.numFeatures and 2 values for lr.regParam,
         // this grid will have 3 x 2 = 6 parameter settings for CrossValidator to choose from.
         val paramGrid = new ParamGridBuilder()
-            .addGrid(rfr.numTrees, Array(10, 50, 100))
-            .addGrid(rfr.maxDepth, Array(5, 15))
+            .addGrid(rfr.numTrees, Array(10, 50))
+            .addGrid(rfr.maxDepth, Array(5, 10))
             .build()
 
         val regressionEvaluator = new RegressionEvaluator()
@@ -279,6 +279,7 @@ object App {
         println("\tMaxDepth for the best model: " + rfrStage.getMaxDepth)
         println()
 
+        println("Selected features (reminder): " + selector.selectedFeatures.mkString(", "))
         println("Features " + rfrStage.featureImportances)
 
         // Make predictions.
