@@ -1,25 +1,19 @@
 package lucnik
 
-import org.apache.spark.SparkConf
-import org.apache.spark.SparkContext
 import org.apache.log4j.{Level, Logger}
-import org.apache.spark.ml.{Pipeline, PipelineModel}
-import org.apache.spark.ml.classification.{LogisticRegression, MultilayerPerceptronClassifier, RandomForestClassificationModel, RandomForestClassifier}
-import org.apache.spark.ml.evaluation.{MulticlassClassificationEvaluator, RegressionEvaluator}
+import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.spark.ml.evaluation.RegressionEvaluator
 import org.apache.spark.ml.feature._
-import org.apache.spark.ml.regression.{LinearRegression, RandomForestRegressionModel, RandomForestRegressor}
+import org.apache.spark.ml.regression.{RandomForestRegressionModel, RandomForestRegressor}
 import org.apache.spark.ml.tuning.{CrossValidator, ParamGridBuilder}
-import org.apache.spark.sql.{Column, DataFrame, SparkSession}
+import org.apache.spark.ml.{Pipeline, PipelineModel}
+import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions.{countDistinct, _}
 import org.apache.spark.sql.types.{DoubleType, IntegerType}
 
 
 object App {
     def main(args: Array[String]) {
-        val conf = new SparkConf().setAppName("Big Data Project")
-        val sc = new SparkContext(conf)
-
-        // TODO do we need to enable Hive support?
         val spark = SparkSession
             .builder()
             .appName("")
@@ -29,9 +23,6 @@ object App {
         import spark.implicits._
 
         val dataLocation = args(0)
-        // TODO debug
-        //println("DATA LOCATION IS FIXED")
-        //val dataLocation = "./data/2008_1000.csv"
 
         Logger.getRootLogger.setLevel(Level.WARN)
         Logger.getRootLogger.log(Level.DEBUG, s"Loading data from: $dataLocation")
@@ -165,7 +156,7 @@ object App {
             .setSplits(buckets)
 
         // Transform original data into its bucket index.
-        df = bucketizer.transform(df).drop("Distance").withColumnRenamed("DistanceBucket", "Distance")
+        df = bucketizer.transform(df).drop("Distance").withColumnRenamed("DistanceBucket", "DisType")
 
         // Actually it is easier to operate directly on the columns instead of using Bucketizer, if there's no need of a pipeline
         println("Converting hhmm times to hour buckets")
@@ -202,7 +193,7 @@ object App {
         df.printSchema
         df.show
 
-        var assembler = new VectorAssembler()
+        val assembler = new VectorAssembler()
             .setInputCols(df.drop("ArrDelay").columns)
             .setOutputCol("features")
 
@@ -228,13 +219,13 @@ object App {
 
         // Automatically identify categorical features, and index them.
         // Set maxCategories so features with > 4 distinct values are treated as continuous.
-        var featureIndexer = new VectorIndexer()
+        val featureIndexer = new VectorIndexer()
             .setInputCol("selectedFeatures")
             .setOutputCol("indexedFeatures")
             .fit(data)
 
         // Split the data into training and test sets (30% held out for testing).
-        var Array(trainingData, testData) = data.randomSplit(Array(0.7, 0.3), 42)
+        val Array(trainingData, testData) = data.randomSplit(Array(0.7, 0.3), 42)
 
         // Train a RandomForestRegressor model.
         println(s"Random forest regressor")
@@ -243,7 +234,7 @@ object App {
             .setFeaturesCol("indexedFeatures")
 
         // Chain indexer and forest in a Pipeline.
-        var pipeline = new Pipeline()
+        val pipeline = new Pipeline()
             .setStages(Array(featureSelector, featureIndexer, rfr))
 
         // We use a ParamGridBuilder to construct a grid of parameters to search over.
@@ -280,14 +271,14 @@ object App {
         println("Features " + rfrStage.featureImportances)
 
         // Make predictions.
-        var predictions = cvModel.transform(testData)
+        val predictions = cvModel.transform(testData)
 
         // Select example rows to display.
         predictions.select("prediction", "label", "selectedFeatures").show
 
         // Select (prediction, true label) and compute test error.
-        var rmse = regressionEvaluator.evaluate(predictions)
-        var r2 = regressionEvaluator
+        val rmse = regressionEvaluator.evaluate(predictions)
+        val r2 = regressionEvaluator
             .setMetricName("r2")
             .evaluate(predictions)
 
