@@ -165,6 +165,7 @@ object App {
         // Transform original data into its bucket index.
         df = bucketizer.transform(df).drop("Distance").withColumnRenamed("DistanceBucket", "Distance")
 
+        // Actually it is easier to operate directly on the columns instead of using Bucketizer, if there's no need of a pipeline
         println("Converting hhmm times to hour buckets")
         for (colName <- Array("DepTime", "CRSDepTime", "CRSArrTime")) {
             println(s"\tConverting $colName")
@@ -174,7 +175,7 @@ object App {
         }
 
         println("Using OneHotEncoders for categorical variables")
-        for (colName <- Array("Origin", "Dest", "Year", "Month", "DayOfMonth", "DayOfWeek", "DayOfYear", "UniqueCarrier")) {
+        for (colName <- Array("Origin", "Dest", "Year", "Month", "DayOfMonth", "DayOfWeek", "DayOfYear", "UniqueCarrier", "DepTime", "CRSDepTime", "CRSArrTime")) {
             if (df.columns contains colName) {
                 println(s"\tTransforming $colName")
                 val indexer = new StringIndexer()
@@ -211,14 +212,14 @@ object App {
         var data = assembler.transform(df).select("features", "ArrDelay")
         data = data.withColumnRenamed("ArrDelay", "label")
 
-//        println("Feature selection")
-//        val selector = new ChiSqSelector()
-//            .setNumTopFeatures(10)
-//            .setFeaturesCol("features")
-//            .setOutputCol("selectedFeatures")
-//            .fit(data)
-//
-//        data = selector.transform(data)
+        println("Feature selection")
+        val selector = new ChiSqSelector()
+            .setNumTopFeatures(10)
+            .setFeaturesCol("features")
+            .setOutputCol("selectedFeatures")
+            .fit(data)
+
+        data = selector.transform(data)
 
         data.printSchema()
         data.show()
@@ -257,7 +258,7 @@ object App {
         // Automatically identify categorical features, and index them.
         // Set maxCategories so features with > 4 distinct values are treated as continuous.
         var featureIndexer = new VectorIndexer()
-            .setInputCol("features")
+            .setInputCol("selectedFeatures")
             .setOutputCol("indexedFeatures")
             .fit(data)
 
