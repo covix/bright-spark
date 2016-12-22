@@ -146,21 +146,25 @@ object App {
         println("Drop all NA!!!")
         df = df.na.drop()
 
-        //val bucketSize = 250
-        //println(s"Bucketizing Distance (bucketSize = $bucketSize")
-        //val distMax = (df.select(max($"Distance")).head.getDouble(0) + 1).asInstanceOf[Int]
-        //var buckets = Array[Double](0)
-        //for (i <- bucketSize to distMax + bucketSize by bucketSize) {
-        //    buckets :+= i.asInstanceOf[Double]
-        //}
-        //
-        //val bucketizer = new Bucketizer()
-        //    .setInputCol("Distance")
-        //    .setOutputCol("DistanceBucket")
-        //    .setSplits(buckets)
-        //
-        //// Transform original data into its bucket index.
-        //df = bucketizer.transform(df).drop("Distance").withColumnRenamed("DistanceBucket", "Distance")
+        val distMax = (df.select(max($"Distance")).head.getDouble(0) + 1).asInstanceOf[Int]
+        val distMin = df.select(min($"Distance")).head.getDouble(0).asInstanceOf[Int]
+        val bucketSize = (distMax - distMin) / 3.0
+
+        var buckets = Array[Double](distMin)
+        println(s"Bucketizing Distance (bucketSize = $bucketSize")
+        for (i <- distMin + bucketSize to distMax by bucketSize) {
+            buckets :+= i.asInstanceOf[Double]
+        }
+        println("\tNumber fo buckets: " + (buckets.length - 1))
+        println(s"\tBuckets: " + buckets.mkString(", "))
+
+        val bucketizer = new Bucketizer()
+            .setInputCol("Distance")
+            .setOutputCol("DistanceBucket")
+            .setSplits(buckets)
+
+        // Transform original data into its bucket index.
+        df = bucketizer.transform(df).drop("Distance").withColumnRenamed("DistanceBucket", "Distance")
 
         // Actually it is easier to operate directly on the columns instead of using Bucketizer, if there's no need of a pipeline
         println("Converting hhmm times to hour buckets")
