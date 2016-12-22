@@ -343,7 +343,11 @@ object App {
         // Run cross-validation, and choose the best set of parameters.
         val cvModel = cv.fit(trainingData)
 
-        println("Best models params :" + cvModel.bestModel.explainParams())
+        val bestPipelineModel = cvModel.bestModel.asInstanceOf[PipelineModel]
+        val stages = bestPipelineModel.stages
+        val rfrStage = stages.last.asInstanceOf[RandomForestRegressionModel]
+        println("Number of trees for the best model: " + rfrStage.getNumTrees)
+        println("Features " + rfrStage.featureImportances)
 
         // Make predictions.
         var predictions = cvModel.transform(testData)
