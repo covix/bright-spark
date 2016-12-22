@@ -173,7 +173,7 @@ object App {
         }
 
         println("Using OneHotEncoders for categorical variables")
-        for (colName <- Array("Origin", "Dest", "Year", "Month", "DayOfMonth", "DayOfWeek", "DayOfYear", "UniqueCarrier", "DepTime", "CRSDepTime", "CRSArrTime")) {
+        for (colName <- Array("Origin", "Dest", "Year", "Month", "DayOfMonth", "DayOfWeek", "DayOfYear", "UniqueCarrier")) {
             if (df.columns contains colName) {
                 println(s"\tTransforming $colName")
                 val indexer = new StringIndexer()
@@ -211,6 +211,8 @@ object App {
             .setFeaturesCol("features")
             .setOutputCol("selectedFeatures")
             .fit(data)
+
+        println("Index of selected features: " + selector.selectedFeatures.mkString(", "))
 
         data = selector.transform(data)
 
@@ -274,9 +276,9 @@ object App {
         val rfrStage = stages.last.asInstanceOf[RandomForestRegressionModel]
         println("Best model params:")
         println("\tNumber of trees for the best model: " + rfrStage.getNumTrees)
-        println("\tImpurity for the best model: " + rfrStage.getImpurity)
         println("\tMaxDepth for the best model: " + rfrStage.getMaxDepth)
         println()
+
         println("Features " + rfrStage.featureImportances)
 
         // Make predictions.
