@@ -51,9 +51,9 @@ object App {
             "CRSDepTime",
             //"ArrTime", // forbidden
             "CRSArrTime",
-            "UniqueCarrier", // TODO use it
-            //"FlightNum", // TODO think on it
-            //"TailNum",  // mmm
+            "UniqueCarrier",
+            //"FlightNum",
+            //"TailNum",
             //"ActualElapsedTime", // forbidden
             "CRSElapsedTime",
             //"AirTime", // forbidden
@@ -76,7 +76,6 @@ object App {
 
         df = df.select(columnNames.head, columnNames.tail: _*)
 
-        // could not be needed the print
         df.printSchema
         df.show
 
@@ -85,7 +84,6 @@ object App {
             .drop("Cancelled")
 
         println("Casting columns to double")
-        // TODO shall we cast every column?
         for (colName <- Array("DepTime", "ArrDelay", "DepDelay", "TaxiOut", "CRSElapsedTime", "CRSArrTime", "Distance")) {
             df = df.withColumn(colName, df.col(colName).cast(DoubleType))
         }
@@ -183,7 +181,6 @@ object App {
                     .setOutputCol(colName + "Index")
                     .fit(df)
                 val indexed = indexer.transform(df)
-                //df = indexer.transform(df)
 
                 val encoder = new OneHotEncoder()
                     .setInputCol(colName + "Index")
@@ -193,9 +190,6 @@ object App {
                 df = df.drop(colName)
                     .withColumnRenamed(colName + "Vec", colName)
                     .drop(colName + "Index")
-
-                //df = df.drop(colName)
-                //    .withColumnRenamed(colName + "Index", colName)
             }
         }
 
@@ -205,7 +199,6 @@ object App {
         df.show
 
         var assembler = new VectorAssembler()
-            //.setInputCols(df.columns.drop(df.columns.indexOf("ArrDelay")))
             .setInputCols(df.drop("ArrDelay").columns)
             .setOutputCol("features")
 
@@ -224,30 +217,9 @@ object App {
         data.printSchema()
         data.show()
 
-        ////val model = new LogisticRegression()
-        ////    .setLabelCol("ArrDelay")
-        ////    .setMaxIter(10)
-        //
-        //val model = new LinearRegression()
-        //    .setFeaturesCol("features")
-        ////    .setLabelCol("ArrDelay")
-        //    .setMaxIter(10)
-        //    .setRegParam(0.3)
-        //    .setElasticNetParam(0.8)
-        //
-        //val trainedModel = model.fit(data)
-        //
-        //println(s"Coefficients: ${trainedModel.coefficients} Intercept: ${trainedModel.intercept}")
-        //
-        //val trainingSummary = trainedModel.summary
-        //println(s"numIterations: ${trainingSummary.totalIterations}")
-        //println(s"objectiveHistory: ${trainingSummary.objectiveHistory.toList}")
-        //trainingSummary.residuals.show()
-        //println(s"RMSE: ${trainingSummary.rootMeanSquaredError}")
-        //println(s"r2: ${trainingSummary.r2}")
-
 
         println("Trainin Classifier")
+
         // Index labels, adding metadata to the label column.
         // Fit on whole dataset to include all labels in index.
         val labelIndexer = new StringIndexer()
@@ -257,90 +229,13 @@ object App {
 
         // Automatically identify categorical features, and index them.
         // Set maxCategories so features with > 4 distinct values are treated as continuous.
-        println("NOT USING SELECTED FEATURES")
         var featureIndexer = new VectorIndexer()
-            .setInputCol("features")
+            .setInputCol("selectedFeatures")
             .setOutputCol("indexedFeatures")
             .fit(data)
 
         // Split the data into training and test sets (30% held out for testing).
         var Array(trainingData, testData) = data.randomSplit(Array(0.7, 0.3), 42)
-        //
-        ////// Train a RandomForest model.
-        //val trainer = new RandomForestClassifier()
-        //    .setLabelCol("indexedLabel")
-        //    .setFeaturesCol("indexedFeatures")
-        //    .setMaxBins(200)
-        //    .setNumTrees(10)
-
-        // specify layers for the neural network:
-        // input layer of size 4 (features), two intermediate of size 5 and 4
-        // and output of size 3 (classes)
-        //val layers = Array[Int](df.columns.length - 1, 75, 100, data.select(countDistinct("label")).head.getLong(0).asInstanceOf[Int])
-        // create the trainer and set its parameters
-        //val trainer = new MultilayerPerceptronClassifier()
-        //    .setLabelCol("indexedLabel")
-        //    .setFeaturesCol("indexedFeatures")
-        //    //.setFeaturesCol("features")
-        //    .setLayers(layers)
-        //    .setBlockSize(128)
-        //    .setSeed(1234L)
-        //    .setMaxIter(1000)
-        //
-        //// Convert indexed labels back to original labels.
-        //val labelConverter = new IndexToString()
-        //    .setInputCol("prediction")
-        //    .setOutputCol("predictedLabel")
-        //    .setLabels(labelIndexer.labels)
-        //
-        //// Chain indexers and forest in a Pipeline.
-        //var pipeline = new Pipeline()
-        //    //.setStages(Array(labelIndexer, featureIndexer, trainer, labelConverter))
-        //    .setStages(Array(featureIndexer, labelIndexer, trainer, labelConverter))
-
-        //var td = labelIndexer.transform(data)
-        //td = featureIndexer.transform(td)
-        //val lm = trainer.fit(td)
-        //
-        //var ted = labelIndexer.transform(testData)
-        //ted = featureIndexer.transform(ted)
-        //
-        //val result = lm.transform(ted)
-        //val predictionAndLabels = result.select("prediction", "label")
-        //val evaluator = new MulticlassClassificationEvaluator()
-        //    .setMetricName("accuracy")
-        //println("Accuracy: " + evaluator.evaluate(predictionAndLabels))
-        //var rmse = regressionEvaluator.evaluate(predictionAndLabels)
-        //println("Root Mean Squared Error (RMSE) on test data = " + rmse)
-
-
-        //// Train model. This also runs the indexers.
-        //var model = pipeline.fit(trainingData)
-        //
-        //// Make predictions.
-        //var predictions = model.transform(testData)
-        //
-        //// Select example rows to display.
-        //predictions.select("predictedLabel", "label", "features").show
-        //
-        //val multiClassEvaluator = new MulticlassClassificationEvaluator()
-        //    .setLabelCol("indexedLabel")
-        //    .setPredictionCol("prediction")
-        //    .setMetricName("accuracy")
-        //val accuracy = multiClassEvaluator.evaluate(predictions)
-        //println("Accuracy = " + accuracy)
-        ////println("Test Error = " + (1.0 - accuracy))
-        //
-        //val regressionEvaluator = new RegressionEvaluator()
-        //    .setLabelCol("label")
-        //    .setPredictionCol("prediction")
-        //    .setMetricName("rmse")
-        //
-        //var rmse = regressionEvaluator.evaluate(predictions)
-        //println("Root Mean Squared Error (RMSE) on test data = " + rmse)
-
-        //val rfModel = model.stages(2).asInstanceOf[RandomForestClassificationModel]
-        //println("Learned classification forest model:\n" + rfModel.toDebugString)
 
         // Train a RandomForestRegressor model.
         println(s"Random forest regressor")
@@ -390,102 +285,13 @@ object App {
         // Select example rows to display.
         predictions.select("prediction", "label", "features").show
 
-
         // Select (prediction, true label) and compute test error.
         var rmse = regressionEvaluator.evaluate(predictions)
         var r2 = regressionEvaluator
             .setMetricName("r2")
             .evaluate(predictions)
 
-        //var regressor = model.stages.last.asInstanceOf[RandomForestRegressionModel]
-
-        println("Root Mean Squared Error (RMSE) on test data = " + rmse)
+        println(s"Root Mean Squared Error (RMSE) on test data = $rmse")
         println(s"R^2 on test data: $r2")
-        //println("Learned regression forest model:\n" + regressor.toDebugString)
-
-
-        //val rfModel = model.stages(1).asInstanceOf[RandomForestRegressionModel]
-        //println("Learned regression forest model:\n" + rfModel.toDebugString)
-
-        //
-        //df.printSchema
-        //
-        //assembler = new VectorAssembler()
-        //    //.setInputCols(df.columns.drop(df.columns.indexOf("ArrDelay")))
-        //    .setInputCols(df.drop("TaxiOut").columns)
-        //    .setOutputCol("features")
-        //
-        //data = assembler.transform(df)
-        //data = data.withColumn("label", data.col("ArrDelay"))
-        //
-        //featureIndexer = new VectorIndexer()
-        //    .setInputCol("features")
-        //    .setOutputCol("indexedFeatures")
-        //    .setMaxCategories(4)
-        //    .fit(data)
-        //
-        //
-        //val Array(trainingData2, testData2) = data.randomSplit(Array(0.7, 0.3), 42)
-        //
-        //pipeline = new Pipeline()
-        //    .setStages(Array(featureIndexer, rfr))
-        //
-        //model = pipeline.fit(trainingData2)
-        //
-        //// Make predictions.
-        //predictions = model.transform(testData2)
-        //
-        //// Select example rows to display.
-        //predictions.select("prediction", "label", "features").show(5)
-        //
-        //rmse = regressionEvaluator.evaluate(predictions)
-        //
-        //r2 = regressionEvaluator
-        //    .setMetricName("r2")
-        //    .evaluate(predictions)
-        //
-        //println("Root Mean Squared Error (RMSE) on test data = " + rmse)
-        //println(s"R^2 on test data: $r2")
     }
-
 }
-
-
-// // Exercise 3 by Jesús
-//  val spark = SparkSession
-//     .builder()
-//     .appName("")
-//     .getOrCreate()
-//
-// var df = spark.read
-//     .format("com.databricks.spark.csv")
-//     .option("sep", " ")
-//     .option("header", "false")
-//     .load("file:///filepath.csv")
-//     .withColumnRenamed("_c0", "project_name")
-//     .withColumnRenamed("_c1", "page_title")
-//     .withColumnRenamed("_c2", "num_requests")
-//     .withColumnRenamed("_c3", "content_size")
-//     .select(
-//         col("_c0").as("project_name"),
-//         col("_c1").as("page_title"),
-//         col("_c2").as("long").as("num_requests"),
-//         col("_c3").as("long").as("content_size"),
-//     )
-//
-// val project_summary = df
-//     .groupBy("project_name")
-//     .agg(
-//         count("page_title").as("num_pages"),
-//         sum("content_size").as("content_size"),
-//         avg("num_requests").as("mean_requests")
-//     )
-//
-// project_summary.show
-//
-// val most_visited = df.join(
-//     project_summary.select("project_name", "num_requests"),
-//     "project_name"
-// ).filter(col("num_requests") > col(mean_requests))
-//
-// most_visited.show
