@@ -251,7 +251,7 @@ object App {
         // this grid will have 3 x 2 = 6 parameter settings for CrossValidator to choose from.
         val paramGrid = new ParamGridBuilder()
             .addGrid(rfr.numTrees, Array(10, 50))
-            .addGrid(rfr.maxDepth, Array(10, 20))
+            .addGrid(rfr.maxDepth, Array(10, 15))
             .build()
 
         val regressionEvaluator = new RegressionEvaluator()
